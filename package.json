@@ -1,0 +1,12 @@
+{
+  "name": "sokubaireji-csv-summary",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/parser.test.mjs && node tests/fileLoader.test.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

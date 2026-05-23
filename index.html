@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>即売レジCSV集計</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="upload-panel" aria-labelledby="app-title">
+        <div>
+          <p class="eyebrow">Phase 2.5</p>
+          <h1 id="app-title">即売レジCSV集計</h1>
+          <p class="lead">CSVを読み込み、集計結果をGoogleスプレッドシートへ保存します。</p>
+        </div>
+        <label class="file-drop">
+          <span class="file-drop__label">CSVファイルを選択</span>
+          <span class="file-drop__hint">CSV / ZIPに対応</span>
+          <input id="csvFile" type="file" accept=".csv,.zip,text/csv,application/zip" />
+        </label>
+      </section>
+
+      <section id="message" class="message" hidden></section>
+
+      <section id="result" class="result" hidden>
+        <div class="summary-grid" id="summaryCards"></div>
+
+        <section class="section-block" id="fileListSection" aria-labelledby="files-title" hidden>
+          <div class="section-header">
+            <h2 id="files-title">取込ファイル一覧</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>状態</th>
+                  <th>ファイル名</th>
+                  <th>会計数</th>
+                  <th>販売点数</th>
+                  <th>売上合計</th>
+                  <th>確認</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="fileListBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="save-title">
+          <div class="section-header">
+            <h2 id="save-title">スプレッドシート保存</h2>
+          </div>
+          <form id="saveForm" class="save-form">
+            <label>
+              <span>イベント名</span>
+              <input id="eventName" type="text" autocomplete="off" required />
+            </label>
+            <label>
+              <span>イベント日</span>
+              <input id="eventDate" type="date" required />
+            </label>
+            <label>
+              <span>出店者名</span>
+              <input id="sellerName" type="text" autocomplete="off" required />
+            </label>
+            <label class="wide-field">
+              <span>Apps Script WebアプリURL</span>
+              <input id="appsScriptUrl" type="url" inputmode="url" autocomplete="off" required />
+            </label>
+            <label class="wide-field">
+              <span>保存用トークン</span>
+              <input id="saveToken" type="password" autocomplete="off" required />
+            </label>
+            <div class="form-actions">
+              <button id="saveButton" type="submit">スプレッドシートへ保存</button>
+              <p id="saveStatus" class="save-status" aria-live="polite"></p>
+            </div>
+          </form>
+        </section>
+
+        <section class="section-block" aria-labelledby="checks-title">
+          <div class="section-header">
+            <h2 id="checks-title">一致確認</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>確認項目</th>
+                  <th>計算結果</th>
+                  <th>CSV記載</th>
+                  <th>状態</th>
+                </tr>
+              </thead>
+              <tbody id="checksBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="products-title">
+          <div class="section-header">
+            <h2 id="products-title">商品別集計</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>列</th>
+                  <th>商品名</th>
+                  <th>販売数</th>
+                  <th>CSV合計数</th>
+                  <th>商品別売上額</th>
+                  <th>参考単価</th>
+                  <th>内部キー</th>
+                </tr>
+              </thead>
+              <tbody id="productsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="sales-title">
+          <div class="section-header">
+            <h2 id="sales-title">会計別売上</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>日時</th>
+                  <th>商品数</th>
+                  <th>小計</th>
+                  <th>明細</th>
+                </tr>
+              </thead>
+              <tbody id="salesBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.mjs"></script>
+  </body>
+</html>
