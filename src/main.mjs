@@ -135,7 +135,7 @@ saveForm.addEventListener("submit", async (event) => {
     return;
   }
   if (!appsScriptUrl || !saveToken) {
-    showSaveStatus("保存設定を確認してください。", "error");
+    showSaveStatus("保存先設定を確認してください。", "error");
     settingsPanel.hidden = false;
     return;
   }
@@ -185,7 +185,7 @@ saveForm.addEventListener("submit", async (event) => {
     );
   } catch (error) {
     resetPdfState();
-    showSaveStatus(error instanceof Error ? error.message : "保存できませんでした。設定または通信状態を確認してください。", "error");
+    showSaveStatus(error instanceof Error ? error.message : "保存できませんでした。保存先設定または通信状態を確認してください。", "error");
   } finally {
     saveButton.disabled = false;
   }
@@ -199,7 +199,7 @@ pdfButton.addEventListener("click", async () => {
     return;
   }
   if (!appsScriptUrl || !saveToken) {
-    showPdfStatus("保存設定を確認してください。", "error");
+    showPdfStatus("保存先設定を確認してください。", "error");
     settingsPanel.hidden = false;
     return;
   }
@@ -228,7 +228,7 @@ loadImportsButton.addEventListener("click", async () => {
 
   try {
     if (!appsScriptUrl || !saveToken) {
-      showSavedImportsStatus("保存設定を確認してください。", "error");
+      showSavedImportsStatus("保存先設定を確認してください。", "error");
       settingsPanel.hidden = false;
       return;
     }
@@ -260,7 +260,7 @@ savedImportsBody.addEventListener("click", async (event) => {
   const importId = button.dataset.importId;
 
   if (!appsScriptUrl || !saveToken) {
-    showSavedImportsStatus("保存設定を確認してください。", "error");
+    showSavedImportsStatus("保存先設定を確認してください。", "error");
     settingsPanel.hidden = false;
     return;
   }
@@ -569,7 +569,7 @@ function showSettingsStatus(text, status) {
 
 function updateSettingsState() {
   const hasSettings = Boolean(appsScriptUrlInput.value.trim() && saveTokenInput.value.trim());
-  settingsState.textContent = `保存設定：${hasSettings ? "設定済み" : "未設定"}`;
+  settingsState.textContent = `保存先：${hasSettings ? "設定済み" : "未設定"}`;
   settingsState.className = `settings-state ${hasSettings ? "ok" : "warn"}`;
 }
 
