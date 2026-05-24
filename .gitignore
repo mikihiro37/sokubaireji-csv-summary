@@ -1,1 +1,7 @@
 node_modules/
+
+# Local clasp config
+.clasp.json
+
+# macOS
+.DS_Store

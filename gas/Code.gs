@@ -1,5 +1,5 @@
 var SPREADSHEET_ID_PROPERTY_KEY = "SPREADSHEET_ID";
-var TOKEN_PROPERTY_KEY = "SAVE_TOKEN";
+var SAVE_TOKEN_PROPERTY_KEY = "SAVE_TOKEN";
 
 var SHEETS = {
   imports: {
@@ -119,16 +119,16 @@ function setupProperties() {
     throw new Error("setupProperties内の保存用トークンを設定してください。");
   }
 
-  PropertiesService.getScriptProperties().setProperties({
-    SPREADSHEET_ID: spreadsheetId,
-    SAVE_TOKEN: saveToken,
-  });
+  var properties = {};
+  properties[SPREADSHEET_ID_PROPERTY_KEY] = spreadsheetId;
+  properties[SAVE_TOKEN_PROPERTY_KEY] = saveToken;
+  PropertiesService.getScriptProperties().setProperties(properties);
   return true;
 }
 
 function checkProperties() {
   Logger.log("SPREADSHEET_ID: " + (getScriptProperty_(SPREADSHEET_ID_PROPERTY_KEY) ? "設定済み" : "未設定"));
-  Logger.log("SAVE_TOKEN: " + (getScriptProperty_(TOKEN_PROPERTY_KEY) ? "設定済み" : "未設定"));
+  Logger.log("SAVE_TOKEN: " + (getScriptProperty_(SAVE_TOKEN_PROPERTY_KEY) ? "設定済み" : "未設定"));
 }
 
 function validatePayload(payload) {
@@ -163,7 +163,7 @@ function getSpreadsheetId_() {
 }
 
 function getSaveToken_() {
-  var saveToken = getScriptProperty_(TOKEN_PROPERTY_KEY);
+  var saveToken = getScriptProperty_(SAVE_TOKEN_PROPERTY_KEY);
   if (!saveToken) {
     throwAppError("missing_save_token", "保存用トークンが設定されていません。");
   }
