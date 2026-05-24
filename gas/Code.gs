@@ -212,6 +212,82 @@ function setupTest() {
   return true;
 }
 
+function formatSheets() {
+  var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+
+  formatSheet_(spreadsheet, SHEETS.imports, "取込ログ用シートです。CSVごとの保存単位を記録します。", {
+    widths: {
+      import_id: 150,
+      event_name: 220,
+      event_date: 110,
+      seller_name: 180,
+      source_file_name: 260,
+      imported_at: 150,
+      transaction_count: 120,
+      product_count: 110,
+      total_quantity: 110,
+      csv_total: 120,
+      calculated_total: 140,
+      difference: 120,
+      status: 90,
+      csv_hash: 150,
+      warning_message: 280,
+    },
+    dateColumns: ["event_date"],
+    dateTimeColumns: ["imported_at"],
+    currencyColumns: ["csv_total", "calculated_total", "difference"],
+    numberColumns: ["transaction_count", "product_count", "total_quantity"],
+    centerColumns: ["status"],
+    clipColumns: ["csv_hash"],
+  });
+
+  formatSheet_(spreadsheet, SHEETS.sales_details, "会計・商品ごとの明細用シートです。取込データの内訳を記録します。", {
+    widths: {
+      import_id: 150,
+      event_name: 220,
+      event_date: 110,
+      seller_name: 180,
+      receipt_no: 100,
+      sold_at: 150,
+      product_key: 150,
+      product_name: 240,
+      quantity: 90,
+      unit_price: 110,
+      amount: 120,
+      source_file_name: 260,
+    },
+    dateColumns: ["event_date"],
+    dateTimeColumns: ["sold_at"],
+    currencyColumns: ["unit_price", "amount"],
+    numberColumns: ["quantity"],
+    centerColumns: ["receipt_no"],
+    clipColumns: ["product_key"],
+  });
+
+  formatSheet_(spreadsheet, SHEETS.product_summary, "商品別集計用シートです。取込ごとの商品別合計を記録します。", {
+    widths: {
+      import_id: 150,
+      event_name: 220,
+      event_date: 110,
+      seller_name: 180,
+      product_key: 150,
+      product_name: 240,
+      total_quantity: 120,
+      unit_price: 110,
+      total_amount: 130,
+      remaining_quantity: 130,
+      status: 90,
+    },
+    dateColumns: ["event_date"],
+    currencyColumns: ["unit_price", "total_amount"],
+    numberColumns: ["total_quantity", "remaining_quantity"],
+    centerColumns: ["status"],
+    clipColumns: ["product_key"],
+  });
+
+  return true;
+}
+
 function testCreatePdfForImportId() {
   var importId = "ここにテスト用import_idを一時的に入れてください";
 
@@ -339,6 +415,77 @@ function setupSheet(spreadsheet, sheetConfig) {
   }
 
   return sheet;
+}
+
+function formatSheet_(spreadsheet, sheetConfig, roleMemo, formatConfig) {
+  var sheet = setupSheet(spreadsheet, sheetConfig);
+  var headers = sheetConfig.headers;
+  var lastRow = Math.max(sheet.getLastRow(), 2);
+  var dataRowCount = Math.max(sheet.getMaxRows() - 1, 1);
+  var headerRange = sheet.getRange(1, 1, 1, headers.length);
+
+  sheet.setFrozenRows(1);
+  headerRange
+    .setFontWeight("bold")
+    .setBackground("#e8f1ed")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+  headerRange.setNotes([headers.map(function() {
+    return roleMemo + "\nシート名、1行目の列名、列順は変更しないでください。";
+  })]);
+
+  if (!sheet.getFilter()) {
+    sheet.getRange(1, 1, lastRow, headers.length).createFilter();
+  }
+
+  sheet.autoResizeColumns(1, headers.length);
+  applyColumnWidths_(sheet, headers, formatConfig.widths || {});
+  applyColumnFormats_(sheet, headers, dataRowCount, formatConfig);
+}
+
+function applyColumnWidths_(sheet, headers, widths) {
+  headers.forEach(function(header, index) {
+    var width = widths[header];
+    if (width) {
+      sheet.setColumnWidth(index + 1, width);
+    }
+  });
+}
+
+function applyColumnFormats_(sheet, headers, dataRowCount, formatConfig) {
+  applyFormatToColumns_(sheet, headers, dataRowCount, formatConfig.dateColumns || [], "yyyy-mm-dd");
+  applyFormatToColumns_(sheet, headers, dataRowCount, formatConfig.dateTimeColumns || [], "yyyy-mm-dd hh:mm");
+  applyFormatToColumns_(sheet, headers, dataRowCount, formatConfig.currencyColumns || [], "¥#,##0");
+  applyFormatToColumns_(sheet, headers, dataRowCount, formatConfig.numberColumns || [], "#,##0");
+  applyAlignmentToColumns_(sheet, headers, dataRowCount, formatConfig.centerColumns || [], "center");
+  applyWrapStrategyToColumns_(sheet, headers, dataRowCount, formatConfig.clipColumns || [], SpreadsheetApp.WrapStrategy.CLIP);
+}
+
+function applyFormatToColumns_(sheet, headers, dataRowCount, targetHeaders, numberFormat) {
+  targetHeaders.forEach(function(header) {
+    var column = headers.indexOf(header) + 1;
+    if (column > 0) {
+      sheet.getRange(2, column, dataRowCount, 1).setNumberFormat(numberFormat);
+    }
+  });
+}
+
+function applyAlignmentToColumns_(sheet, headers, dataRowCount, targetHeaders, alignment) {
+  targetHeaders.forEach(function(header) {
+    var column = headers.indexOf(header) + 1;
+    if (column > 0) {
+      sheet.getRange(2, column, dataRowCount, 1).setHorizontalAlignment(alignment);
+    }
+  });
+}
+
+function applyWrapStrategyToColumns_(sheet, headers, dataRowCount, targetHeaders, strategy) {
+  targetHeaders.forEach(function(header) {
+    var column = headers.indexOf(header) + 1;
+    if (column > 0) {
+      sheet.getRange(2, column, dataRowCount, 1).setWrapStrategy(strategy);
+    }
+  });
 }
 
 function appendObjects(sheet, headers, rows) {
