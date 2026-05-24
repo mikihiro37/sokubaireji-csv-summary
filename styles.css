@@ -75,6 +75,36 @@ h2 {
   font-size: 16px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.settings-state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: #f2f6f4;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-state.ok {
+  color: var(--ok);
+  background: #e8f5ee;
+}
+
+.settings-state.warn {
+  color: var(--warn);
+  background: #fff3df;
+}
+
 .file-drop {
   display: grid;
   gap: 4px;
@@ -110,6 +140,28 @@ h2 {
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface);
+}
+
+.notice-banner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfc;
+}
+
+.notice-banner p {
+  margin: 0;
+  color: #33413b;
+  font-weight: 700;
+}
+
+.settings-panel {
+  margin-top: 16px;
 }
 
 .message.is-error {
@@ -247,6 +299,22 @@ button:hover {
   background: var(--accent-dark);
 }
 
+.text-button,
+.secondary-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  color: var(--accent-dark);
+  background: #fff;
+  font-size: 13px;
+}
+
+.text-button:hover,
+.secondary-button:hover {
+  color: #fff;
+  background: var(--accent-dark);
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.65;
@@ -272,8 +340,47 @@ button:disabled {
   color: var(--error);
 }
 
-.saved-pdf-section {
+.saved-imports-section {
   padding: 22px;
+}
+
+.saved-imports-actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 18px;
+}
+
+.saved-imports-link {
+  padding: 0 18px 18px;
+}
+
+.row-details {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.row-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.row-details dl {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 3px 8px;
+  margin: 6px 0 0;
+  white-space: normal;
+}
+
+.row-details dt {
+  font-weight: 700;
+}
+
+.row-details dd {
+  margin: 0;
 }
 
 .pdf-panel {
@@ -390,6 +497,10 @@ td {
   .upload-panel {
     grid-template-columns: 1fr;
     padding: 20px;
+  }
+
+  .notice-banner {
+    grid-template-columns: 1fr;
   }
 
   .summary-grid {

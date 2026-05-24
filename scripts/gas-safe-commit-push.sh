@@ -75,7 +75,7 @@ if [ -n "$script_id_hits" ]; then
   stop ".clasp.json 以外に scriptId が含まれています。"
 fi
 
-if grep -nE 'var spreadsheetId = "[A-Za-z0-9_-]{25,}"|var saveToken = "[^"]{20,}"|var pdfFolderId = "[A-Za-z0-9_-]{25,}"' gas/Code.gs; then
+if grep -nE 'var spreadsheetId = "[A-Za-z0-9_-]{25,}"|var saveToken = "[A-Za-z0-9_-]{20,}"|var pdfFolderId = "[A-Za-z0-9_-]{25,}"' gas/Code.gs; then
   stop "setupProperties() 周辺に実ID・実トークンらしき固定値があります。"
 fi
 

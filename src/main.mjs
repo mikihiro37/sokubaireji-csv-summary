@@ -19,22 +19,30 @@ const appsScriptUrlInput = document.querySelector("#appsScriptUrl");
 const saveTokenInput = document.querySelector("#saveToken");
 const saveButton = document.querySelector("#saveButton");
 const saveStatus = document.querySelector("#saveStatus");
+const settingsState = document.querySelector("#settingsState");
+const settingsToggle = document.querySelector("#settingsToggle");
+const settingsPanel = document.querySelector("#settingsPanel");
+const settingsForm = document.querySelector("#settingsForm");
+const settingsClose = document.querySelector("#settingsClose");
+const settingsStatus = document.querySelector("#settingsStatus");
+const noticeBanner = document.querySelector("#noticeBanner");
+const noticeClose = document.querySelector("#noticeClose");
+const aboutButton = document.querySelector("#aboutButton");
 const pdfPanel = document.querySelector("#pdfPanel");
 const pdfButton = document.querySelector("#pdfButton");
 const pdfStatus = document.querySelector("#pdfStatus");
 const pdfLinkWrap = document.querySelector("#pdfLinkWrap");
 const pdfLink = document.querySelector("#pdfLink");
-const savedPdfForm = document.querySelector("#savedPdfForm");
-const savedAppsScriptUrlInput = document.querySelector("#savedAppsScriptUrl");
-const savedSaveTokenInput = document.querySelector("#savedSaveToken");
-const savedImportIdInput = document.querySelector("#savedImportId");
-const savedPdfButton = document.querySelector("#savedPdfButton");
-const savedPdfStatus = document.querySelector("#savedPdfStatus");
+const loadImportsButton = document.querySelector("#loadImportsButton");
+const savedImportsStatus = document.querySelector("#savedImportsStatus");
+const savedImportsTableWrap = document.querySelector("#savedImportsTableWrap");
+const savedImportsBody = document.querySelector("#savedImportsBody");
 const savedPdfLinkWrap = document.querySelector("#savedPdfLinkWrap");
 const savedPdfLink = document.querySelector("#savedPdfLink");
 
 const APPS_SCRIPT_URL_STORAGE_KEY = "sokubai.appsScriptUrl";
 const SAVE_TOKEN_STORAGE_KEY = "sokubai.saveToken";
+const NOTICE_DISMISSED_STORAGE_KEY = "sokubai_notice_dismissed";
 let currentParsed = null;
 let currentCsvText = "";
 let currentFileName = "";
@@ -45,23 +53,36 @@ let lastSavedImportId = "";
 document.documentElement.dataset.jszipAvailable = String(Boolean(globalThis.JSZip));
 appsScriptUrlInput.value = localStorage.getItem(APPS_SCRIPT_URL_STORAGE_KEY) ?? "";
 saveTokenInput.value = localStorage.getItem(SAVE_TOKEN_STORAGE_KEY) ?? "";
-savedAppsScriptUrlInput.value = appsScriptUrlInput.value;
-savedSaveTokenInput.value = saveTokenInput.value;
+updateSettingsState();
+noticeBanner.hidden = localStorage.getItem(NOTICE_DISMISSED_STORAGE_KEY) === "true";
 
-appsScriptUrlInput.addEventListener("input", () => {
-  savedAppsScriptUrlInput.value = appsScriptUrlInput.value;
+settingsToggle.addEventListener("click", () => {
+  settingsPanel.hidden = !settingsPanel.hidden;
 });
 
-saveTokenInput.addEventListener("input", () => {
-  savedSaveTokenInput.value = saveTokenInput.value;
+settingsClose.addEventListener("click", () => {
+  settingsPanel.hidden = true;
 });
 
-savedAppsScriptUrlInput.addEventListener("input", () => {
-  appsScriptUrlInput.value = savedAppsScriptUrlInput.value;
+settingsForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, appsScriptUrlInput.value.trim());
+  localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveTokenInput.value.trim());
+  updateSettingsState();
+  showSettingsStatus("設定を保存しました。", "ok");
+  settingsPanel.hidden = true;
 });
 
-savedSaveTokenInput.addEventListener("input", () => {
-  saveTokenInput.value = savedSaveTokenInput.value;
+appsScriptUrlInput.addEventListener("input", updateSettingsState);
+saveTokenInput.addEventListener("input", updateSettingsState);
+
+noticeClose.addEventListener("click", () => {
+  localStorage.setItem(NOTICE_DISMISSED_STORAGE_KEY, "true");
+  noticeBanner.hidden = true;
+});
+
+aboutButton.addEventListener("click", () => {
+  noticeBanner.hidden = false;
 });
 
 fileInput.addEventListener("change", async (event) => {
@@ -109,8 +130,13 @@ saveForm.addEventListener("submit", async (event) => {
   const appsScriptUrl = appsScriptUrlInput.value.trim();
   const saveToken = saveTokenInput.value.trim();
 
-  if (!meta.eventName || !meta.eventDate || !meta.sellerName || !appsScriptUrl || !saveToken) {
-    showSaveStatus("イベント名・イベント日・出店者名・URL・保存用トークンを入力してください。", "error");
+  if (!meta.eventName || !meta.eventDate || !meta.sellerName) {
+    showSaveStatus("イベント名・イベント日・出店者名を入力してください。", "error");
+    return;
+  }
+  if (!appsScriptUrl || !saveToken) {
+    showSaveStatus("保存設定を確認してください。", "error");
+    settingsPanel.hidden = false;
     return;
   }
 
@@ -138,7 +164,7 @@ saveForm.addEventListener("submit", async (event) => {
     if (response.code === "duplicate_csv_hash" && response.existing_import_id) {
       setPdfImportReady(
         response.existing_import_id,
-        `このCSVはすでに保存済みです。保存済みデータからPDFを作成できます。既存の取込ID: ${response.existing_import_id}`,
+        "このCSVは保存済みです。保存済みデータからPDFを作成できます。",
         "保存済みデータからPDFを作成できます。",
       );
       return;
@@ -159,7 +185,7 @@ saveForm.addEventListener("submit", async (event) => {
     );
   } catch (error) {
     resetPdfState();
-    showSaveStatus(error instanceof Error ? error.message : "保存に失敗しました。", "error");
+    showSaveStatus(error instanceof Error ? error.message : "保存できませんでした。設定または通信状態を確認してください。", "error");
   } finally {
     saveButton.disabled = false;
   }
@@ -173,7 +199,8 @@ pdfButton.addEventListener("click", async () => {
     return;
   }
   if (!appsScriptUrl || !saveToken) {
-    showPdfStatus("Apps Script WebアプリURLと保存用トークンを入力してください。", "error");
+    showPdfStatus("保存設定を確認してください。", "error");
+    settingsPanel.hidden = false;
     return;
   }
 
@@ -188,45 +215,70 @@ pdfButton.addEventListener("click", async () => {
     pdfLinkWrap.hidden = false;
     showPdfStatus("PDFを作成しました。アプリ所有者のGoogle Driveに保存されています。リンクはDriveの共有設定によっては開けない場合があります。", "ok");
   } catch (error) {
-    showPdfStatus(error instanceof Error ? error.message : "PDF作成に失敗しました。", "error");
+    showPdfStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
     pdfButton.disabled = false;
     pdfButton.textContent = "PDFを作成";
   }
 });
 
-savedPdfForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+loadImportsButton.addEventListener("click", async () => {
+  const appsScriptUrl = appsScriptUrlInput.value.trim();
+  const saveToken = saveTokenInput.value.trim();
 
-  const appsScriptUrl = savedAppsScriptUrlInput.value.trim();
-  const saveToken = savedSaveTokenInput.value.trim();
-  const importId = savedImportIdInput.value.trim();
+  try {
+    if (!appsScriptUrl || !saveToken) {
+      showSavedImportsStatus("保存設定を確認してください。", "error");
+      settingsPanel.hidden = false;
+      return;
+    }
 
-  if (!importId) {
-    showSavedPdfStatus("import_idを入力してください。", "error");
-    return;
+    loadImportsButton.disabled = true;
+    loadImportsButton.textContent = "読み込み中…";
+    savedPdfLinkWrap.hidden = true;
+    showSavedImportsStatus("保存済みデータを読み込んでいます。", "");
+    localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, appsScriptUrl);
+    localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveToken);
+
+    const response = await listImports(appsScriptUrl, saveToken);
+    renderSavedImports(response.imports || []);
+    showSavedImportsStatus(response.imports?.length ? "最近の取込を表示しました。" : "保存済みデータはありません。", "ok");
+  } catch (error) {
+    showSavedImportsStatus(error instanceof Error ? error.message : "保存済みデータを読み込めませんでした。", "error");
+  } finally {
+    loadImportsButton.disabled = false;
+    loadImportsButton.textContent = "最近の取込を表示";
   }
+});
+
+savedImportsBody.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-import-id]");
+  if (!button) return;
+
+  const appsScriptUrl = appsScriptUrlInput.value.trim();
+  const saveToken = saveTokenInput.value.trim();
+  const importId = button.dataset.importId;
+
   if (!appsScriptUrl || !saveToken) {
-    showSavedPdfStatus("Apps Script WebアプリURLと保存用トークンを入力してください。", "error");
+    showSavedImportsStatus("保存設定を確認してください。", "error");
+    settingsPanel.hidden = false;
     return;
   }
 
   try {
-    savedPdfButton.disabled = true;
-    savedPdfButton.textContent = "PDFを作成しています…";
+    button.disabled = true;
+    button.textContent = "作成中…";
     savedPdfLinkWrap.hidden = true;
-    showSavedPdfStatus("PDFを作成しています。", "");
-    localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, appsScriptUrl);
-    localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveToken);
+    showSavedImportsStatus("PDFを作成しています。", "");
 
     const response = await createPdf(appsScriptUrl, saveToken, importId);
     showPdfLink(savedPdfLink, savedPdfLinkWrap, response);
-    showSavedPdfStatus("PDFを作成しました。アプリ所有者のGoogle Driveに保存されています。リンクはDriveの共有設定によっては開けない場合があります。", "ok");
+    showSavedImportsStatus("PDFを作成しました。", "ok");
   } catch (error) {
-    showSavedPdfStatus(error instanceof Error ? error.message : "PDF作成に失敗しました。", "error");
+    showSavedImportsStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
-    savedPdfButton.disabled = false;
-    savedPdfButton.textContent = "この取込IDでPDFを作成";
+    button.disabled = false;
+    button.textContent = "PDF作成";
   }
 });
 
@@ -442,6 +494,20 @@ async function createPdf(appsScriptUrl, saveToken, importId) {
   return response;
 }
 
+async function listImports(appsScriptUrl, saveToken) {
+  const response = await postToAppsScript(appsScriptUrl, {
+    action: "list_imports",
+    token: saveToken,
+    limit: 20,
+  });
+
+  if (!response.ok) {
+    throw new Error(response.message ?? "保存済みデータを読み込めませんでした。");
+  }
+
+  return response;
+}
+
 function guessEventDate(parsed, fileName) {
   const firstDate = parsed.transactions[0]?.dateTime?.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
   if (firstDate) {
@@ -463,7 +529,6 @@ function showSaveStatus(text, status) {
 
 function setPdfImportReady(importId, saveMessage, pdfMessage) {
   lastSavedImportId = importId;
-  savedImportIdInput.value = importId;
   showSaveStatus(saveMessage, "ok");
   showPdfReady(pdfMessage);
 }
@@ -492,15 +557,59 @@ function showPdfStatus(text, status) {
   pdfStatus.className = `save-status ${status}`.trim();
 }
 
-function showSavedPdfStatus(text, status) {
-  savedPdfStatus.textContent = text;
-  savedPdfStatus.className = `save-status ${status}`.trim();
+function showSavedImportsStatus(text, status) {
+  savedImportsStatus.textContent = text;
+  savedImportsStatus.className = `save-status ${status}`.trim();
+}
+
+function showSettingsStatus(text, status) {
+  settingsStatus.textContent = text;
+  settingsStatus.className = `save-status ${status}`.trim();
+}
+
+function updateSettingsState() {
+  const hasSettings = Boolean(appsScriptUrlInput.value.trim() && saveTokenInput.value.trim());
+  settingsState.textContent = `保存設定：${hasSettings ? "設定済み" : "未設定"}`;
+  settingsState.className = `settings-state ${hasSettings ? "ok" : "warn"}`;
 }
 
 function showPdfLink(linkElement, wrapElement, response) {
   linkElement.href = response.pdf_url;
   linkElement.textContent = response.filename || "PDFを開く";
   wrapElement.hidden = false;
+}
+
+function renderSavedImports(imports) {
+  savedImportsTableWrap.hidden = imports.length === 0;
+  savedImportsBody.innerHTML = imports
+    .map((item) => `
+      <tr>
+        <td>${escapeHtml(formatDateValue(item.event_date))}</td>
+        <td>${escapeHtml(item.event_name || "-")}</td>
+        <td>${escapeHtml(item.seller_name || "-")}</td>
+        <td class="number">${formatCurrency(Number(item.calculated_total || 0))}</td>
+        <td class="number">${formatNumber(Number(item.total_quantity || 0))}点</td>
+        <td>${renderStatus(normalizeStatus(item.status))}</td>
+        <td>
+          <button class="small-button" type="button" data-import-id="${escapeHtml(item.import_id)}">PDF作成</button>
+          <details class="row-details">
+            <summary>詳細</summary>
+            <dl>
+              <dt>取込ID</dt><dd>${escapeHtml(item.import_id || "-")}</dd>
+              <dt>CSV</dt><dd>${escapeHtml(item.source_file_name || "-")}</dd>
+              <dt>取込日時</dt><dd>${escapeHtml(formatDateTimeValue(item.imported_at))}</dd>
+            </dl>
+          </details>
+        </td>
+      </tr>
+    `)
+    .join("");
+}
+
+function normalizeStatus(status) {
+  if (status === "ok") return "ok";
+  if (status === "warning" || status === "warn") return "warn";
+  return status === "error" ? "error" : "warn";
 }
 
 function formatCurrency(value) {
@@ -523,6 +632,17 @@ function formatNumber(value) {
 
 function formatOptionalNumber(value) {
   return value === null ? "-" : formatNumber(value);
+}
+
+function formatDateValue(value) {
+  if (!value) return "-";
+  if (typeof value === "string") return value.slice(0, 10);
+  return String(value);
+}
+
+function formatDateTimeValue(value) {
+  if (!value) return "-";
+  return String(value);
 }
 
 function escapeHtml(value) {

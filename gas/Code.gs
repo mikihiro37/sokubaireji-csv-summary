@@ -73,6 +73,9 @@ function doPost(e) {
     if (action === "create_pdf") {
       return jsonResponse(handleCreatePdf_(payload));
     }
+    if (action === "list_imports") {
+      return jsonResponse(handleListImports_(payload));
+    }
 
     throwAppError("unknown_action", "未対応の処理です。");
   } catch (error) {
@@ -132,6 +135,46 @@ function handleCreatePdf_(payload) {
     filename: result.filename,
     message: "PDFを作成しました。",
   };
+}
+
+function handleListImports_(payload) {
+  var limit = Number(payload.limit || 20);
+  if (isNaN(limit) || limit < 1) limit = 20;
+  limit = Math.min(limit, 50);
+
+  try {
+    var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+    var sheet = spreadsheet.getSheetByName(SHEETS.imports.name);
+    if (!sheet) {
+      throwAppError("imports_not_found", "保存済みデータが見つかりません。");
+    }
+
+    var rows = objectsFromSheet_(sheet);
+    rows.sort(function(a, b) {
+      return getTimeValue_(b.imported_at) - getTimeValue_(a.imported_at);
+    });
+
+    return {
+      ok: true,
+      imports: rows.slice(0, limit).map(function(row) {
+        return {
+          import_id: row.import_id,
+          event_date: formatDate_(row.event_date),
+          event_name: row.event_name,
+          seller_name: row.seller_name,
+          total_quantity: Number(row.total_quantity || 0),
+          calculated_total: Number(row.calculated_total || 0),
+          status: row.status,
+          source_file_name: row.source_file_name,
+          imported_at: formatDateTime_(row.imported_at),
+        };
+      }),
+    };
+  } catch (error) {
+    if (error && error.code) throw error;
+    logPdfError_("list_imports_failed", error);
+    throwAppError("list_imports_failed", "保存済みデータを読み込めませんでした。");
+  }
 }
 
 function createSalesSummaryPdf(importId) {
@@ -571,6 +614,13 @@ function formatDateTime_(value) {
   var dateValue = Object.prototype.toString.call(value) === "[object Date]" ? value : new Date(value);
   if (isNaN(dateValue.getTime())) return String(value);
   return Utilities.formatDate(dateValue, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+}
+
+function getTimeValue_(value) {
+  if (!value) return 0;
+  var dateValue = Object.prototype.toString.call(value) === "[object Date]" ? value : new Date(value);
+  if (isNaN(dateValue.getTime())) return 0;
+  return dateValue.getTime();
 }
 
 function escapeHtml_(value) {
