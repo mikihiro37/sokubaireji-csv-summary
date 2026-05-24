@@ -1,5 +1,6 @@
 var SPREADSHEET_ID_PROPERTY_KEY = "SPREADSHEET_ID";
 var SAVE_TOKEN_PROPERTY_KEY = "SAVE_TOKEN";
+var PDF_FOLDER_ID_PROPERTY_KEY = "PDF_FOLDER_ID";
 
 var SHEETS = {
   imports: {
@@ -63,32 +64,17 @@ function doPost(e) {
 
   try {
     var payload = JSON.parse(e.postData.contents);
-    validatePayload(payload);
+    var action = payload.action || "save";
     validateToken(payload.token);
 
-    var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
-    var importsSheet = setupSheet(spreadsheet, SHEETS.imports);
-    var detailsSheet = setupSheet(spreadsheet, SHEETS.sales_details);
-    var summarySheet = setupSheet(spreadsheet, SHEETS.product_summary);
-
-    if (hasDuplicateHash(importsSheet, payload.import.csv_hash)) {
-      return jsonResponse({
-        ok: false,
-        code: "duplicate_csv_hash",
-        message: "同じCSVハッシュの取込ログがすでに存在します。",
-      });
+    if (action === "save") {
+      return jsonResponse(handleSave_(payload));
+    }
+    if (action === "create_pdf") {
+      return jsonResponse(handleCreatePdf_(payload));
     }
 
-    appendObjects(importsSheet, SHEETS.imports.headers, [payload.import]);
-    appendObjects(detailsSheet, SHEETS.sales_details.headers, payload.sales_details);
-    appendObjects(summarySheet, SHEETS.product_summary.headers, payload.product_summary);
-
-    return jsonResponse({
-      ok: true,
-      import_id: payload.import.import_id,
-      detail_count: payload.sales_details.length,
-      product_count: payload.product_summary.length,
-    });
+    throwAppError("unknown_action", "未対応の処理です。");
   } catch (error) {
     return jsonResponse({
       ok: false,
@@ -98,6 +84,72 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function handleSave_(payload) {
+  validatePayload(payload);
+
+  var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+  var importsSheet = setupSheet(spreadsheet, SHEETS.imports);
+  var detailsSheet = setupSheet(spreadsheet, SHEETS.sales_details);
+  var summarySheet = setupSheet(spreadsheet, SHEETS.product_summary);
+
+  if (hasDuplicateHash(importsSheet, payload.import.csv_hash)) {
+    return {
+      ok: false,
+      code: "duplicate_csv_hash",
+      message: "同じCSVハッシュの取込ログがすでに存在します。",
+    };
+  }
+
+  appendObjects(importsSheet, SHEETS.imports.headers, [payload.import]);
+  appendObjects(detailsSheet, SHEETS.sales_details.headers, payload.sales_details);
+  appendObjects(summarySheet, SHEETS.product_summary.headers, payload.product_summary);
+
+  return {
+    ok: true,
+    import_id: payload.import.import_id,
+    detail_count: payload.sales_details.length,
+    product_count: payload.product_summary.length,
+  };
+}
+
+function handleCreatePdf_(payload) {
+  if (!payload.import_id) {
+    throwAppError("missing_import_id", "取込IDが指定されていません。");
+  }
+
+  var result = createSalesSummaryPdf(payload.import_id);
+  return {
+    ok: true,
+    import_id: payload.import_id,
+    pdf_file_id: result.fileId,
+    pdf_url: result.url,
+    filename: result.filename,
+    message: "PDFを作成しました。",
+  };
+}
+
+function createSalesSummaryPdf(importId) {
+  var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+  var importRecord = getImportRecord_(spreadsheet, importId);
+  if (!importRecord) {
+    throwAppError("import_not_found", "指定された取込IDの取込ログが見つかりません。");
+  }
+
+  var productRows = getProductSummaryRows_(spreadsheet, importId);
+  if (productRows.length === 0) {
+    throwAppError("product_summary_not_found", "指定された取込IDの商品別集計が見つかりません。");
+  }
+
+  var data = {
+    import: importRecord,
+    products: productRows,
+    createdAt: new Date(),
+  };
+  var filename = buildPdfFileName_(data);
+  var html = buildSalesSummaryHtml_(data);
+  return savePdfToDrive_(html, filename);
 }
 
 function setupTest() {
@@ -111,6 +163,7 @@ function setupTest() {
 function setupProperties() {
   var spreadsheetId = "ここに保存先スプレッドシートIDを一時的に入れてください";
   var saveToken = "ここに保存用トークンを一時的に入れてください";
+  var pdfFolderId = "";
 
   if (!spreadsheetId || spreadsheetId === "ここに保存先スプレッドシートIDを一時的に入れてください") {
     throw new Error("setupProperties内の保存先スプレッドシートIDを設定してください。");
@@ -122,6 +175,9 @@ function setupProperties() {
   var properties = {};
   properties[SPREADSHEET_ID_PROPERTY_KEY] = spreadsheetId;
   properties[SAVE_TOKEN_PROPERTY_KEY] = saveToken;
+  if (pdfFolderId) {
+    properties[PDF_FOLDER_ID_PROPERTY_KEY] = pdfFolderId;
+  }
   PropertiesService.getScriptProperties().setProperties(properties);
   return true;
 }
@@ -129,6 +185,7 @@ function setupProperties() {
 function checkProperties() {
   Logger.log("SPREADSHEET_ID: " + (getScriptProperty_(SPREADSHEET_ID_PROPERTY_KEY) ? "設定済み" : "未設定"));
   Logger.log("SAVE_TOKEN: " + (getScriptProperty_(SAVE_TOKEN_PROPERTY_KEY) ? "設定済み" : "未設定"));
+  Logger.log("PDF_FOLDER_ID: " + (getScriptProperty_(PDF_FOLDER_ID_PROPERTY_KEY) ? "設定済み" : "未設定"));
 }
 
 function validatePayload(payload) {
@@ -168,6 +225,21 @@ function getSaveToken_() {
     throwAppError("missing_save_token", "保存用トークンが設定されていません。");
   }
   return saveToken;
+}
+
+function getPdfFolderId_() {
+  return getScriptProperty_(PDF_FOLDER_ID_PROPERTY_KEY) || "";
+}
+
+function getPdfFolder_() {
+  var folderId = getPdfFolderId_();
+  if (!folderId) return null;
+
+  try {
+    return DriveApp.getFolderById(folderId);
+  } catch (error) {
+    throwAppError("pdf_folder_not_found", "PDF保存先フォルダが見つかりません。");
+  }
 }
 
 function throwTokenError(message) {
@@ -220,6 +292,218 @@ function hasDuplicateHash(sheet, csvHash) {
     if (hashValues[i][0] === csvHash) return true;
   }
   return false;
+}
+
+function getImportRecord_(spreadsheet, importId) {
+  var sheet = spreadsheet.getSheetByName(SHEETS.imports.name);
+  if (!sheet) return null;
+
+  var rows = objectsFromSheet_(sheet);
+  for (var i = 0; i < rows.length; i += 1) {
+    if (rows[i].import_id === importId) return rows[i];
+  }
+  return null;
+}
+
+function getProductSummaryRows_(spreadsheet, importId) {
+  var sheet = spreadsheet.getSheetByName(SHEETS.product_summary.name);
+  if (!sheet) return [];
+
+  return objectsFromSheet_(sheet).filter(function(row) {
+    return row.import_id === importId;
+  });
+}
+
+function objectsFromSheet_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  if (lastRow < 2 || lastColumn < 1) return [];
+
+  var values = sheet.getRange(1, 1, lastRow, lastColumn).getValues();
+  var headers = values[0];
+  var rows = [];
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    var row = {};
+    for (var columnIndex = 0; columnIndex < headers.length; columnIndex += 1) {
+      row[headers[columnIndex]] = values[rowIndex][columnIndex];
+    }
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function buildSalesSummaryHtml_(data) {
+  var importRecord = data.import;
+  var products = data.products;
+  var productRows = products.map(function(product) {
+    return [
+      "<tr>",
+      "<td>", escapeHtml_(product.product_name), "</td>",
+      "<td class=\"number\">", formatNumber_(product.total_quantity), "</td>",
+      "<td class=\"number\">", formatYen_(product.total_amount), "</td>",
+      "<td class=\"number\">", formatYen_(product.unit_price), "</td>",
+      "<td class=\"number\">", formatNumber_(product.remaining_quantity), "</td>",
+      "<td>", escapeHtml_(product.status), "</td>",
+      "</tr>",
+    ].join("");
+  }).join("");
+
+  return [
+    "<!doctype html>",
+    "<html lang=\"ja\">",
+    "<head>",
+    "<meta charset=\"UTF-8\">",
+    "<style>",
+    "body{font-family:'Noto Sans JP','Helvetica Neue',Arial,sans-serif;color:#1f2823;margin:28px;font-size:12px;line-height:1.6;}",
+    "h1{font-size:24px;margin:0 0 16px;}h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #d8e1dc;padding-bottom:4px;}",
+    ".meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:8px;}.item{display:flex;gap:8px;}.label{color:#607069;min-width:96px;font-weight:700;}",
+    ".summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0 4px;}.box{border:1px solid #d8e1dc;border-radius:6px;padding:8px;}.box .value{font-size:16px;font-weight:700;}",
+    "table{width:100%;border-collapse:collapse;margin-top:8px;}th,td{border:1px solid #d8e1dc;padding:6px 7px;text-align:left;}th{background:#f2f6f4;font-weight:700;}.number{text-align:right;white-space:nowrap;}",
+    ".note{margin-top:20px;padding:10px 12px;background:#f7faf8;border:1px solid #d8e1dc;border-radius:6px;color:#33413b;}",
+    "</style>",
+    "</head>",
+    "<body>",
+    "<h1>イベント売上控え</h1>",
+    "<h2>取込情報</h2>",
+    "<div class=\"meta\">",
+    renderHtmlItem_("取込ID", importRecord.import_id),
+    renderHtmlItem_("CSVファイル名", importRecord.source_file_name),
+    renderHtmlItem_("取込日時", formatDateTime_(importRecord.imported_at)),
+    renderHtmlItem_("PDF作成日時", formatDateTime_(data.createdAt)),
+    "</div>",
+    "<h2>イベント情報</h2>",
+    "<div class=\"meta\">",
+    renderHtmlItem_("イベント名", importRecord.event_name),
+    renderHtmlItem_("イベント日", formatDate_(importRecord.event_date)),
+    renderHtmlItem_("出店者名", importRecord.seller_name),
+    "</div>",
+    "<h2>売上サマリー</h2>",
+    "<div class=\"summary\">",
+    renderSummaryBox_("会計数", formatNumber_(importRecord.transaction_count) + "件"),
+    renderSummaryBox_("商品数", formatNumber_(importRecord.product_count) + "件"),
+    renderSummaryBox_("販売点数", formatNumber_(importRecord.total_quantity) + "点"),
+    renderSummaryBox_("CSV上の売上合計", formatYen_(importRecord.csv_total)),
+    renderSummaryBox_("計算上の売上合計", formatYen_(importRecord.calculated_total)),
+    renderSummaryBox_("差額", formatYen_(importRecord.difference)),
+    renderSummaryBox_("一致確認結果", importRecord.status),
+    "</div>",
+    "<h2>商品別一覧</h2>",
+    "<table>",
+    "<thead><tr><th>商品名</th><th>販売点数</th><th>売上金額</th><th>参考単価</th><th>残数</th><th>状態</th></tr></thead>",
+    "<tbody>", productRows, "</tbody>",
+    "</table>",
+    "<div class=\"note\">",
+    "<p>この資料は即売レジCSVをもとにした売上集計補助です。</p>",
+    "<p>帳簿付け前の確認資料・売上控えとしてご利用ください。</p>",
+    "<p>税務判断や正式帳簿の作成を行うものではありません。</p>",
+    "</div>",
+    "</body>",
+    "</html>",
+  ].join("");
+}
+
+function renderHtmlItem_(label, value) {
+  return [
+    "<div class=\"item\"><span class=\"label\">",
+    escapeHtml_(label),
+    "</span><span>",
+    escapeHtml_(value || "-"),
+    "</span></div>",
+  ].join("");
+}
+
+function renderSummaryBox_(label, value) {
+  return [
+    "<div class=\"box\"><div class=\"label\">",
+    escapeHtml_(label),
+    "</div><div class=\"value\">",
+    escapeHtml_(value || "-"),
+    "</div></div>",
+  ].join("");
+}
+
+function savePdfToDrive_(html, filename) {
+  var blob;
+  try {
+    blob = HtmlService
+      .createHtmlOutput(html)
+      .getBlob()
+      .getAs(MimeType.PDF)
+      .setName(filename);
+  } catch (error) {
+    throwAppError("pdf_creation_failed", "PDFの作成に失敗しました。");
+  }
+
+  var folder = getPdfFolder_();
+  try {
+    var file = folder ? folder.createFile(blob) : DriveApp.createFile(blob);
+    return {
+      fileId: file.getId(),
+      url: file.getUrl(),
+      filename: filename,
+    };
+  } catch (error) {
+    throwAppError("drive_save_failed", "PDFのDrive保存に失敗しました。");
+  }
+}
+
+function buildPdfFileName_(data) {
+  var importRecord = data.import;
+  var parts = [
+    "イベント売上控え",
+    formatDate_(importRecord.event_date),
+    importRecord.event_name,
+    importRecord.seller_name,
+    importRecord.import_id,
+  ];
+  return sanitizeFileName_(parts.filter(function(part) {
+    return part != null && part !== "";
+  }).join("_")) + ".pdf";
+}
+
+function sanitizeFileName_(name) {
+  return String(name)
+    .replace(/[\\/:*?"<>|#%{}~&]/g, "_")
+    .replace(/\s+/g, " ")
+    .slice(0, 180);
+}
+
+function formatYen_(value) {
+  var numberValue = Number(value || 0);
+  return "¥" + formatNumber_(numberValue);
+}
+
+function formatNumber_(value) {
+  if (value === "" || value == null) return "-";
+  var numberValue = Number(value);
+  if (isNaN(numberValue)) return String(value);
+  return numberValue.toLocaleString("ja-JP");
+}
+
+function formatDate_(value) {
+  if (!value) return "-";
+  if (Object.prototype.toString.call(value) === "[object Date]") {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+  return String(value);
+}
+
+function formatDateTime_(value) {
+  if (!value) return "-";
+  var dateValue = Object.prototype.toString.call(value) === "[object Date]" ? value : new Date(value);
+  if (isNaN(dateValue.getTime())) return String(value);
+  return Utilities.formatDate(dateValue, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+}
+
+function escapeHtml_(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function jsonResponse(value) {

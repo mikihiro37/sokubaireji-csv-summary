@@ -19,6 +19,11 @@ const appsScriptUrlInput = document.querySelector("#appsScriptUrl");
 const saveTokenInput = document.querySelector("#saveToken");
 const saveButton = document.querySelector("#saveButton");
 const saveStatus = document.querySelector("#saveStatus");
+const pdfPanel = document.querySelector("#pdfPanel");
+const pdfButton = document.querySelector("#pdfButton");
+const pdfStatus = document.querySelector("#pdfStatus");
+const pdfLinkWrap = document.querySelector("#pdfLinkWrap");
+const pdfLink = document.querySelector("#pdfLink");
 
 const APPS_SCRIPT_URL_STORAGE_KEY = "sokubai.appsScriptUrl";
 const SAVE_TOKEN_STORAGE_KEY = "sokubai.saveToken";
@@ -27,6 +32,7 @@ let currentCsvText = "";
 let currentFileName = "";
 let currentFileItems = [];
 let activeFileIndex = 0;
+let lastSavedImportId = "";
 
 document.documentElement.dataset.jszipAvailable = String(Boolean(globalThis.JSZip));
 appsScriptUrlInput.value = localStorage.getItem(APPS_SCRIPT_URL_STORAGE_KEY) ?? "";
@@ -48,6 +54,7 @@ fileInput.addEventListener("change", async (event) => {
 
     setActiveFile(firstValidIndex);
     saveStatus.textContent = "";
+    resetPdfState();
     showMessage(buildLoadMessage(file.name, currentFileItems), "");
   } catch (error) {
     currentParsed = null;
@@ -56,6 +63,7 @@ fileInput.addEventListener("change", async (event) => {
     currentFileItems = [];
     activeFileIndex = 0;
     result.hidden = true;
+    resetPdfState();
     showMessage(error instanceof Error ? error.message : "CSVの解析に失敗しました。", "is-error");
   }
 });
@@ -96,17 +104,63 @@ saveForm.addEventListener("submit", async (event) => {
       importedAt: new Date().toISOString(),
       token: saveToken,
     });
-    const response = await saveToAppsScript(appsScriptUrl, payload);
+    const response = await postToAppsScript(appsScriptUrl, {
+      ...payload,
+      action: "save",
+    });
 
     if (!response.ok) {
       throw new Error(response.message ?? "保存に失敗しました。");
     }
 
-    showSaveStatus(`保存しました。import_id: ${response.import_id}`, "ok");
+    lastSavedImportId = response.import_id;
+    showSaveStatus(`保存しました。次にPDFを作成できます。import_id: ${response.import_id}`, "ok");
+    showPdfReady();
   } catch (error) {
+    resetPdfState();
     showSaveStatus(error instanceof Error ? error.message : "保存に失敗しました。", "error");
   } finally {
     saveButton.disabled = false;
+  }
+});
+
+pdfButton.addEventListener("click", async () => {
+  const appsScriptUrl = appsScriptUrlInput.value.trim();
+  const saveToken = saveTokenInput.value.trim();
+  if (!lastSavedImportId) {
+    showPdfStatus("先にスプレッドシートへ保存してください。", "error");
+    return;
+  }
+  if (!appsScriptUrl || !saveToken) {
+    showPdfStatus("Apps Script WebアプリURLと保存用トークンを入力してください。", "error");
+    return;
+  }
+
+  try {
+    pdfButton.disabled = true;
+    pdfButton.textContent = "PDFを作成しています…";
+    pdfLinkWrap.hidden = true;
+    showPdfStatus("PDFを作成しています。", "");
+
+    const response = await postToAppsScript(appsScriptUrl, {
+      action: "create_pdf",
+      token: saveToken,
+      import_id: lastSavedImportId,
+    });
+
+    if (!response.ok) {
+      throw new Error(response.message ?? "PDF作成に失敗しました。");
+    }
+
+    pdfLink.href = response.pdf_url;
+    pdfLink.textContent = response.filename || "PDFを開く";
+    pdfLinkWrap.hidden = false;
+    showPdfStatus("PDFを作成しました。アプリ所有者のGoogle Driveに保存されています。リンクはDriveの共有設定によっては開けない場合があります。", "ok");
+  } catch (error) {
+    showPdfStatus(error instanceof Error ? error.message : "PDF作成に失敗しました。", "error");
+  } finally {
+    pdfButton.disabled = false;
+    pdfButton.textContent = "PDFを作成";
   }
 });
 
@@ -119,6 +173,7 @@ function setActiveFile(index) {
   currentCsvText = item.text;
   currentFileName = item.sourceFileName;
   eventDateInput.value = guessEventDate(item.parsed, item.sourceFileName);
+  resetPdfState();
   render(item.parsed);
 }
 
@@ -178,7 +233,7 @@ function renderFileList() {
           <td class="number">${formatNumber(item.parsed.totals.calculatedQuantity)}</td>
           <td class="number">${formatCurrency(item.parsed.totals.calculatedAmount)}</td>
           <td>${allChecksOk ? "一致" : "要確認"}</td>
-          <td><button class="small-button" type="button" data-file-index="${index}" ${selected ? "disabled" : ""}>${selected ? "選択中" : "表示"}</button></td>
+          <td><button class="small-button" type="button" data-file-index="${index}" ${selected ? "disabled" : ""}>${selected ? "選択中" : "このCSVを表示"}</button></td>
         </tr>
       `;
     })
@@ -280,7 +335,7 @@ function buildLoadMessage(fileName, items) {
   return `${fileName} からCSV ${items.length}件を読み込みました。解析OK: ${okCount}件、要確認: ${errorCount}件`;
 }
 
-async function saveToAppsScript(url, payload) {
+async function postToAppsScript(url, payload) {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -323,6 +378,30 @@ function showSaveStatus(text, status) {
   saveStatus.className = `save-status ${status}`.trim();
 }
 
+function showPdfReady() {
+  pdfPanel.hidden = false;
+  pdfButton.disabled = false;
+  pdfLinkWrap.hidden = true;
+  showPdfStatus("保存成功後の次の操作として、PDFを作成できます。", "");
+}
+
+function resetPdfState() {
+  lastSavedImportId = "";
+  pdfPanel.hidden = true;
+  pdfButton.disabled = false;
+  pdfButton.textContent = "PDFを作成";
+  pdfStatus.textContent = "";
+  pdfStatus.className = "save-status";
+  pdfLink.href = "#";
+  pdfLink.textContent = "PDFを開く";
+  pdfLinkWrap.hidden = true;
+}
+
+function showPdfStatus(text, status) {
+  pdfStatus.textContent = text;
+  pdfStatus.className = `save-status ${status}`.trim();
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("ja-JP", {
     style: "currency",
@@ -359,4 +438,5 @@ fileListBody.addEventListener("click", (event) => {
   if (!button) return;
   setActiveFile(Number(button.dataset.fileIndex));
   saveStatus.textContent = "";
+  resetPdfState();
 });

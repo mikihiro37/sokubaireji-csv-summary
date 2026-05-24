@@ -10,9 +10,9 @@
     <main class="app-shell">
       <section class="upload-panel" aria-labelledby="app-title">
         <div>
-          <p class="eyebrow">Phase 2.5</p>
+          <p class="eyebrow">Phase 3 MVP</p>
           <h1 id="app-title">即売レジCSV集計</h1>
-          <p class="lead">CSVを読み込み、集計結果をGoogleスプレッドシートへ保存します。</p>
+          <p class="lead">CSV/ZIPを読み込み、集計結果の保存とイベント売上控えPDFの作成を行います。</p>
         </div>
         <label class="file-drop">
           <span class="file-drop__label">CSVファイルを選択</span>
@@ -22,6 +22,15 @@
       </section>
 
       <section id="message" class="message" hidden></section>
+
+      <section class="steps-panel" aria-label="操作手順">
+        <ol class="steps-list">
+          <li>CSV/ZIP選択</li>
+          <li>内容確認</li>
+          <li>スプレッドシート保存</li>
+          <li>PDF作成</li>
+        </ol>
+      </section>
 
       <section id="result" class="result" hidden>
         <div class="summary-grid" id="summaryCards"></div>
@@ -78,11 +87,23 @@
               <p id="saveStatus" class="save-status" aria-live="polite"></p>
             </div>
           </form>
+          <div id="pdfPanel" class="pdf-panel" hidden>
+            <div>
+              <h3>次の操作</h3>
+              <p>保存済みの取込IDからイベント売上控えPDFを作成できます。</p>
+            </div>
+            <button id="pdfButton" type="button">PDFを作成</button>
+            <p id="pdfStatus" class="save-status" aria-live="polite"></p>
+            <p id="pdfLinkWrap" class="pdf-link-wrap" hidden>
+              <a id="pdfLink" href="#" target="_blank" rel="noopener">PDFを開く</a>
+            </p>
+          </div>
         </section>
 
         <section class="section-block" aria-labelledby="checks-title">
           <div class="section-header">
             <h2 id="checks-title">一致確認</h2>
+            <p class="section-note">CSV内の集計行とアプリ側の計算結果を照合しています。</p>
           </div>
           <div class="table-wrap">
             <table>

@@ -117,6 +117,26 @@ h2 {
   color: var(--error);
 }
 
+.steps-panel {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.steps-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style-position: inside;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .result {
   display: grid;
   gap: 18px;
@@ -160,6 +180,12 @@ h2 {
 .section-header {
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
+}
+
+.section-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .save-form {
@@ -244,6 +270,35 @@ button:disabled {
 
 .save-status.error {
   color: var(--error);
+}
+
+.pdf-panel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 16px;
+  align-items: center;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--line);
+  background: #fbfdfc;
+}
+
+.pdf-panel h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.pdf-panel p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.pdf-link-wrap {
+  grid-column: 1 / -1;
+}
+
+.pdf-link-wrap a {
+  color: var(--accent-dark);
+  font-weight: 800;
 }
 
 .table-wrap {
@@ -338,6 +393,11 @@ td {
   }
 
   .save-form {
+    grid-template-columns: 1fr;
+  }
+
+  .steps-list,
+  .pdf-panel {
     grid-template-columns: 1fr;
   }
 
