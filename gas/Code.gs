@@ -396,7 +396,6 @@ function buildSalesSummaryHtml_(data) {
       "<td class=\"number\">", formatYen_(product.total_amount), "</td>",
       "<td class=\"number\">", formatYen_(product.unit_price), "</td>",
       "<td class=\"number\">", formatNumber_(product.remaining_quantity), "</td>",
-      "<td>", escapeHtml_(product.status), "</td>",
       "</tr>",
     ].join("");
   }).join("");
@@ -410,20 +409,15 @@ function buildSalesSummaryHtml_(data) {
     "body{font-family:'Noto Sans JP','Helvetica Neue',Arial,sans-serif;color:#1f2823;margin:28px;font-size:12px;line-height:1.6;}",
     "h1{font-size:24px;margin:0 0 16px;}h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #d8e1dc;padding-bottom:4px;}",
     ".meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-bottom:8px;}.item{display:flex;gap:8px;}.label{color:#607069;min-width:96px;font-weight:700;}",
-    ".summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0 4px;}.box{border:1px solid #d8e1dc;border-radius:6px;padding:8px;}.box .value{font-size:16px;font-weight:700;}",
-    "table{width:100%;border-collapse:collapse;margin-top:8px;}th,td{border:1px solid #d8e1dc;padding:6px 7px;text-align:left;}th{background:#f2f6f4;font-weight:700;}.number{text-align:right;white-space:nowrap;}",
+    ".summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0 4px;}.box{border:1px solid #d8e1dc;border-radius:6px;padding:8px;}.box .value{font-size:16px;font-weight:700;}.box.primary{background:#f2f6f4;border-color:#b9cec4;}.box.primary .value{font-size:20px;}",
+    ".summary-note{margin:6px 0 0;color:#607069;font-size:10px;}",
+    "table{width:100%;border-collapse:collapse;margin-top:8px;}thead{display:table-header-group;}tr{page-break-inside:avoid;}th,td{border:1px solid #d8e1dc;padding:6px 7px;text-align:left;}th{background:#f2f6f4;font-weight:700;}.number{text-align:right;white-space:nowrap;}",
     ".note{margin-top:20px;padding:10px 12px;background:#f7faf8;border:1px solid #d8e1dc;border-radius:6px;color:#33413b;}",
+    ".technical-info{margin-top:18px;font-size:10px;color:#607069;}.technical-info h2{font-size:12px;color:#607069;border-bottom:1px solid #e3ebe7;}.technical-info .label{color:#607069;}",
     "</style>",
     "</head>",
     "<body>",
     "<h1>イベント売上控え</h1>",
-    "<h2>取込情報</h2>",
-    "<div class=\"meta\">",
-    renderHtmlItem_("取込ID", importRecord.import_id),
-    renderHtmlItem_("CSVファイル名", importRecord.source_file_name),
-    renderHtmlItem_("取込日時", formatDateTime_(importRecord.imported_at)),
-    renderHtmlItem_("PDF作成日時", formatDateTime_(data.createdAt)),
-    "</div>",
     "<h2>イベント情報</h2>",
     "<div class=\"meta\">",
     renderHtmlItem_("イベント名", importRecord.event_name),
@@ -432,23 +426,32 @@ function buildSalesSummaryHtml_(data) {
     "</div>",
     "<h2>売上サマリー</h2>",
     "<div class=\"summary\">",
-    renderSummaryBox_("会計数", formatNumber_(importRecord.transaction_count) + "件"),
+    renderSummaryBox_("売上合計", formatYen_(importRecord.calculated_total), "primary"),
+    renderSummaryBox_("販売点数", formatNumber_(importRecord.total_quantity) + "点", "primary"),
+    renderSummaryBox_("会計数", formatNumber_(importRecord.transaction_count) + "件", "primary"),
     renderSummaryBox_("商品数", formatNumber_(importRecord.product_count) + "件"),
-    renderSummaryBox_("販売点数", formatNumber_(importRecord.total_quantity) + "点"),
-    renderSummaryBox_("CSV上の売上合計", formatYen_(importRecord.csv_total)),
-    renderSummaryBox_("計算上の売上合計", formatYen_(importRecord.calculated_total)),
     renderSummaryBox_("差額", formatYen_(importRecord.difference)),
-    renderSummaryBox_("一致確認結果", importRecord.status),
+    renderSummaryBox_("一致確認", formatStatusLabel_(importRecord.status)),
     "</div>",
+    "<p class=\"summary-note\">CSV上の売上合計: ", escapeHtml_(formatYen_(importRecord.csv_total)), " / 計算上の売上合計: ", escapeHtml_(formatYen_(importRecord.calculated_total)), "</p>",
     "<h2>商品別一覧</h2>",
     "<table>",
-    "<thead><tr><th>商品名</th><th>販売点数</th><th>売上金額</th><th>参考単価</th><th>残数</th><th>状態</th></tr></thead>",
+    "<thead><tr><th>商品名</th><th>販売点数</th><th>売上金額</th><th>参考単価</th><th>残数</th></tr></thead>",
     "<tbody>", productRows, "</tbody>",
     "</table>",
     "<div class=\"note\">",
     "<p>この資料は即売レジCSVをもとにした売上集計補助です。</p>",
     "<p>帳簿付け前の確認資料・売上控えとしてご利用ください。</p>",
     "<p>税務判断や正式帳簿の作成を行うものではありません。</p>",
+    "</div>",
+    "<div class=\"technical-info\">",
+    "<h2>取込情報（確認用）</h2>",
+    "<div class=\"meta\">",
+    renderHtmlItem_("取込ID", importRecord.import_id),
+    renderHtmlItem_("CSVファイル名", importRecord.source_file_name),
+    renderHtmlItem_("取込日時", formatDateTime_(importRecord.imported_at)),
+    renderHtmlItem_("PDF作成日時", formatDateTime_(data.createdAt)),
+    "</div>",
     "</div>",
     "</body>",
     "</html>",
@@ -465,14 +468,23 @@ function renderHtmlItem_(label, value) {
   ].join("");
 }
 
-function renderSummaryBox_(label, value) {
+function renderSummaryBox_(label, value, className) {
+  var classes = ["box"];
+  if (className) classes.push(className);
   return [
-    "<div class=\"box\"><div class=\"label\">",
+    "<div class=\"", classes.join(" "), "\"><div class=\"label\">",
     escapeHtml_(label),
     "</div><div class=\"value\">",
     escapeHtml_(value || "-"),
     "</div></div>",
   ].join("");
+}
+
+function formatStatusLabel_(status) {
+  if (status === "ok") return "一致";
+  if (status === "warning") return "要確認";
+  if (status === "error") return "要確認";
+  return status || "-";
 }
 
 function savePdfToDrive_(html, filename) {
