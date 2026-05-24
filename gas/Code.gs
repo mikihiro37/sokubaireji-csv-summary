@@ -117,11 +117,13 @@ function handleSave_(payload) {
 }
 
 function handleCreatePdf_(payload) {
+  Logger.log("[PDF] handleCreatePdf_ start import_id: " + (payload && payload.import_id ? payload.import_id : "未指定"));
   if (!payload.import_id) {
     throwAppError("missing_import_id", "取込IDが指定されていません。");
   }
 
   var result = createSalesSummaryPdf(payload.import_id);
+  Logger.log("[PDF] handleCreatePdf_ success import_id: " + payload.import_id + ", fileId: " + result.fileId);
   return {
     ok: true,
     import_id: payload.import_id,
@@ -133,13 +135,16 @@ function handleCreatePdf_(payload) {
 }
 
 function createSalesSummaryPdf(importId) {
+  Logger.log("[PDF] createSalesSummaryPdf start import_id: " + importId);
   var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
   var importRecord = getImportRecord_(spreadsheet, importId);
+  Logger.log("[PDF] import record found: " + (importRecord ? "yes" : "no"));
   if (!importRecord) {
     throwAppError("import_not_found", "指定された取込IDの取込ログが見つかりません。");
   }
 
   var productRows = getProductSummaryRows_(spreadsheet, importId);
+  Logger.log("[PDF] product_summary rows: " + productRows.length);
   if (productRows.length === 0) {
     throwAppError("product_summary_not_found", "指定された取込IDの商品別集計が見つかりません。");
   }
@@ -150,7 +155,9 @@ function createSalesSummaryPdf(importId) {
     createdAt: new Date(),
   };
   var filename = buildPdfFileName_(data);
+  Logger.log("[PDF] filename built: " + filename);
   var html = buildSalesSummaryHtml_(data);
+  Logger.log("[PDF] HTML generated. length: " + html.length);
   return savePdfToDrive_(html, filename);
 }
 
@@ -160,6 +167,19 @@ function setupTest() {
   setupSheet(spreadsheet, SHEETS.sales_details);
   setupSheet(spreadsheet, SHEETS.product_summary);
   return true;
+}
+
+function testCreatePdfForImportId() {
+  var importId = "ここにテスト用import_idを一時的に入れてください";
+
+  if (!importId || importId === "ここにテスト用import_idを一時的に入れてください") {
+    throw new Error("testCreatePdfForImportId内のimport_idを一時的に設定してください。");
+  }
+
+  Logger.log("[PDF] testCreatePdfForImportId start import_id: " + importId);
+  var result = createSalesSummaryPdf(importId);
+  Logger.log("[PDF] testCreatePdfForImportId result: " + JSON.stringify(result, null, 2));
+  return result;
 }
 
 function setupProperties() {
@@ -235,11 +255,19 @@ function getPdfFolderId_() {
 
 function getPdfFolder_() {
   var folderId = getPdfFolderId_();
-  if (!folderId) return null;
+  Logger.log("[PDF] PDF_FOLDER_ID configured: " + (folderId ? "yes" : "no"));
+  if (!folderId) {
+    Logger.log("[PDF] Drive destination: マイドライブ直下");
+    return null;
+  }
 
   try {
-    return DriveApp.getFolderById(folderId);
+    Logger.log("[PDF] Drive destination: 指定フォルダ");
+    var folder = DriveApp.getFolderById(folderId);
+    Logger.log("[PDF] PDF folder resolved.");
+    return folder;
   } catch (error) {
+    logPdfError_("pdf_folder_not_found", error);
     throwAppError("pdf_folder_not_found", "PDF保存先フォルダが見つかりません。");
   }
 }
@@ -300,23 +328,40 @@ function findImportIdByCsvHash_(sheet, csvHash) {
 }
 
 function getImportRecord_(spreadsheet, importId) {
+  Logger.log("[PDF] getImportRecord_ start import_id: " + importId);
   var sheet = spreadsheet.getSheetByName(SHEETS.imports.name);
-  if (!sheet) return null;
+  if (!sheet) {
+    Logger.log("[PDF] imports sheet found: no");
+    return null;
+  }
 
   var rows = objectsFromSheet_(sheet);
+  Logger.log("[PDF] imports rows loaded: " + rows.length);
   for (var i = 0; i < rows.length; i += 1) {
-    if (rows[i].import_id === importId) return rows[i];
+    if (rows[i].import_id === importId) {
+      Logger.log("[PDF] getImportRecord_ matched: yes");
+      return rows[i];
+    }
   }
+  Logger.log("[PDF] getImportRecord_ matched: no");
   return null;
 }
 
 function getProductSummaryRows_(spreadsheet, importId) {
+  Logger.log("[PDF] getProductSummaryRows_ start import_id: " + importId);
   var sheet = spreadsheet.getSheetByName(SHEETS.product_summary.name);
-  if (!sheet) return [];
+  if (!sheet) {
+    Logger.log("[PDF] product_summary sheet found: no");
+    return [];
+  }
 
-  return objectsFromSheet_(sheet).filter(function(row) {
+  var rows = objectsFromSheet_(sheet);
+  Logger.log("[PDF] product_summary rows loaded: " + rows.length);
+  var matchedRows = rows.filter(function(row) {
     return row.import_id === importId;
   });
+  Logger.log("[PDF] product_summary matched rows: " + matchedRows.length);
+  return matchedRows;
 }
 
 function objectsFromSheet_(sheet) {
@@ -342,6 +387,7 @@ function objectsFromSheet_(sheet) {
 function buildSalesSummaryHtml_(data) {
   var importRecord = data.import;
   var products = data.products;
+  Logger.log("[PDF] buildSalesSummaryHtml_ start import_id: " + importRecord.import_id + ", product rows: " + products.length);
   var productRows = products.map(function(product) {
     return [
       "<tr>",
@@ -430,6 +476,7 @@ function renderSummaryBox_(label, value) {
 }
 
 function savePdfToDrive_(html, filename) {
+  Logger.log("[PDF] savePdfToDrive_ start filename: " + filename + ", html length: " + html.length);
   var blob;
   try {
     blob = HtmlService
@@ -437,20 +484,32 @@ function savePdfToDrive_(html, filename) {
       .getBlob()
       .getAs(MimeType.PDF)
       .setName(filename);
+    Logger.log("[PDF] PDF blob generated. bytes: " + blob.getBytes().length);
   } catch (error) {
+    logPdfError_("pdf_creation_failed", error);
     throwAppError("pdf_creation_failed", "PDFの作成に失敗しました。");
   }
 
   var folder = getPdfFolder_();
   try {
+    Logger.log("[PDF] Drive save starting. destination: " + (folder ? "指定フォルダ" : "マイドライブ直下"));
     var file = folder ? folder.createFile(blob) : DriveApp.createFile(blob);
+    Logger.log("[PDF] Drive save completed. fileId: " + file.getId());
     return {
       fileId: file.getId(),
       url: file.getUrl(),
       filename: filename,
     };
   } catch (error) {
+    logPdfError_("drive_save_failed", error);
     throwAppError("drive_save_failed", "PDFのDrive保存に失敗しました。");
+  }
+}
+
+function logPdfError_(label, error) {
+  Logger.log("[PDF] " + label + ": " + (error && error.message ? error.message : error));
+  if (error && error.stack) {
+    Logger.log("[PDF] stack: " + error.stack);
   }
 }
 
