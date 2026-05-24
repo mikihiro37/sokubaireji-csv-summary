@@ -32,6 +32,34 @@
         </ol>
       </section>
 
+      <section class="section-block saved-pdf-section" aria-labelledby="saved-pdf-title">
+        <div class="section-header">
+          <h2 id="saved-pdf-title">保存済み取込IDからPDF作成</h2>
+          <p class="section-note">スプレッドシートの imports シートにある import_id を入力すると、保存済みデータからPDFを作成できます。PDFはアプリ所有者のGoogle Driveに保存されます。</p>
+        </div>
+        <form id="savedPdfForm" class="save-form" novalidate>
+          <label class="wide-field">
+            <span>Apps Script WebアプリURL</span>
+            <input id="savedAppsScriptUrl" type="url" inputmode="url" autocomplete="off" />
+          </label>
+          <label>
+            <span>保存用トークン</span>
+            <input id="savedSaveToken" type="password" autocomplete="off" />
+          </label>
+          <label>
+            <span>import_idを入力</span>
+            <input id="savedImportId" type="text" autocomplete="off" placeholder="IMP_..." />
+          </label>
+          <div class="form-actions">
+            <button id="savedPdfButton" type="submit">この取込IDでPDFを作成</button>
+            <p id="savedPdfStatus" class="save-status" aria-live="polite"></p>
+          </div>
+        </form>
+        <p id="savedPdfLinkWrap" class="pdf-link-wrap" hidden>
+          <a id="savedPdfLink" href="#" target="_blank" rel="noopener">PDFを開く</a>
+        </p>
+      </section>
+
       <section id="result" class="result" hidden>
         <div class="summary-grid" id="summaryCards"></div>
 
@@ -90,7 +118,7 @@
           <div id="pdfPanel" class="pdf-panel" hidden>
             <div>
               <h3>次の操作</h3>
-              <p>保存済みの取込IDからイベント売上控えPDFを作成できます。</p>
+              <p>保存済みデータからPDFを作成できます。PDFはアプリ所有者のGoogle Driveに保存されます。</p>
             </div>
             <button id="pdfButton" type="button">PDFを作成</button>
             <p id="pdfStatus" class="save-status" aria-live="polite"></p>

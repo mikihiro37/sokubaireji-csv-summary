@@ -24,6 +24,14 @@ const pdfButton = document.querySelector("#pdfButton");
 const pdfStatus = document.querySelector("#pdfStatus");
 const pdfLinkWrap = document.querySelector("#pdfLinkWrap");
 const pdfLink = document.querySelector("#pdfLink");
+const savedPdfForm = document.querySelector("#savedPdfForm");
+const savedAppsScriptUrlInput = document.querySelector("#savedAppsScriptUrl");
+const savedSaveTokenInput = document.querySelector("#savedSaveToken");
+const savedImportIdInput = document.querySelector("#savedImportId");
+const savedPdfButton = document.querySelector("#savedPdfButton");
+const savedPdfStatus = document.querySelector("#savedPdfStatus");
+const savedPdfLinkWrap = document.querySelector("#savedPdfLinkWrap");
+const savedPdfLink = document.querySelector("#savedPdfLink");
 
 const APPS_SCRIPT_URL_STORAGE_KEY = "sokubai.appsScriptUrl";
 const SAVE_TOKEN_STORAGE_KEY = "sokubai.saveToken";
@@ -37,6 +45,24 @@ let lastSavedImportId = "";
 document.documentElement.dataset.jszipAvailable = String(Boolean(globalThis.JSZip));
 appsScriptUrlInput.value = localStorage.getItem(APPS_SCRIPT_URL_STORAGE_KEY) ?? "";
 saveTokenInput.value = localStorage.getItem(SAVE_TOKEN_STORAGE_KEY) ?? "";
+savedAppsScriptUrlInput.value = appsScriptUrlInput.value;
+savedSaveTokenInput.value = saveTokenInput.value;
+
+appsScriptUrlInput.addEventListener("input", () => {
+  savedAppsScriptUrlInput.value = appsScriptUrlInput.value;
+});
+
+saveTokenInput.addEventListener("input", () => {
+  savedSaveTokenInput.value = saveTokenInput.value;
+});
+
+savedAppsScriptUrlInput.addEventListener("input", () => {
+  appsScriptUrlInput.value = savedAppsScriptUrlInput.value;
+});
+
+savedSaveTokenInput.addEventListener("input", () => {
+  saveTokenInput.value = savedSaveTokenInput.value;
+});
 
 fileInput.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
@@ -109,13 +135,28 @@ saveForm.addEventListener("submit", async (event) => {
       action: "save",
     });
 
+    if (response.code === "duplicate_csv_hash" && response.existing_import_id) {
+      setPdfImportReady(
+        response.existing_import_id,
+        `このCSVはすでに保存済みです。保存済みデータからPDFを作成できます。既存の取込ID: ${response.existing_import_id}`,
+        "保存済みデータからPDFを作成できます。",
+      );
+      return;
+    }
+
     if (!response.ok) {
       throw new Error(response.message ?? "保存に失敗しました。");
     }
 
-    lastSavedImportId = response.import_id;
-    showSaveStatus(`保存しました。次にPDFを作成できます。import_id: ${response.import_id}`, "ok");
-    showPdfReady();
+    if (!response.import_id) {
+      throw new Error("保存先からimport_idが返りませんでした。");
+    }
+
+    setPdfImportReady(
+      response.import_id,
+      `保存しました。import_id: ${response.import_id}`,
+      "保存済みデータからPDFを作成できます。",
+    );
   } catch (error) {
     resetPdfState();
     showSaveStatus(error instanceof Error ? error.message : "保存に失敗しました。", "error");
@@ -142,18 +183,8 @@ pdfButton.addEventListener("click", async () => {
     pdfLinkWrap.hidden = true;
     showPdfStatus("PDFを作成しています。", "");
 
-    const response = await postToAppsScript(appsScriptUrl, {
-      action: "create_pdf",
-      token: saveToken,
-      import_id: lastSavedImportId,
-    });
-
-    if (!response.ok) {
-      throw new Error(response.message ?? "PDF作成に失敗しました。");
-    }
-
-    pdfLink.href = response.pdf_url;
-    pdfLink.textContent = response.filename || "PDFを開く";
+    const response = await createPdf(appsScriptUrl, saveToken, lastSavedImportId);
+    showPdfLink(pdfLink, pdfLinkWrap, response);
     pdfLinkWrap.hidden = false;
     showPdfStatus("PDFを作成しました。アプリ所有者のGoogle Driveに保存されています。リンクはDriveの共有設定によっては開けない場合があります。", "ok");
   } catch (error) {
@@ -161,6 +192,41 @@ pdfButton.addEventListener("click", async () => {
   } finally {
     pdfButton.disabled = false;
     pdfButton.textContent = "PDFを作成";
+  }
+});
+
+savedPdfForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const appsScriptUrl = savedAppsScriptUrlInput.value.trim();
+  const saveToken = savedSaveTokenInput.value.trim();
+  const importId = savedImportIdInput.value.trim();
+
+  if (!importId) {
+    showSavedPdfStatus("import_idを入力してください。", "error");
+    return;
+  }
+  if (!appsScriptUrl || !saveToken) {
+    showSavedPdfStatus("Apps Script WebアプリURLと保存用トークンを入力してください。", "error");
+    return;
+  }
+
+  try {
+    savedPdfButton.disabled = true;
+    savedPdfButton.textContent = "PDFを作成しています…";
+    savedPdfLinkWrap.hidden = true;
+    showSavedPdfStatus("PDFを作成しています。", "");
+    localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, appsScriptUrl);
+    localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveToken);
+
+    const response = await createPdf(appsScriptUrl, saveToken, importId);
+    showPdfLink(savedPdfLink, savedPdfLinkWrap, response);
+    showSavedPdfStatus("PDFを作成しました。アプリ所有者のGoogle Driveに保存されています。リンクはDriveの共有設定によっては開けない場合があります。", "ok");
+  } catch (error) {
+    showSavedPdfStatus(error instanceof Error ? error.message : "PDF作成に失敗しました。", "error");
+  } finally {
+    savedPdfButton.disabled = false;
+    savedPdfButton.textContent = "この取込IDでPDFを作成";
   }
 });
 
@@ -359,6 +425,23 @@ async function postToAppsScript(url, payload) {
   return parsed;
 }
 
+async function createPdf(appsScriptUrl, saveToken, importId) {
+  const response = await postToAppsScript(appsScriptUrl, {
+    action: "create_pdf",
+    token: saveToken,
+    import_id: importId,
+  });
+
+  if (!response.ok) {
+    throw new Error(response.message ?? "PDF作成に失敗しました。");
+  }
+  if (!response.pdf_url) {
+    throw new Error("保存先からPDF URLが返りませんでした。");
+  }
+
+  return response;
+}
+
 function guessEventDate(parsed, fileName) {
   const firstDate = parsed.transactions[0]?.dateTime?.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
   if (firstDate) {
@@ -378,11 +461,18 @@ function showSaveStatus(text, status) {
   saveStatus.className = `save-status ${status}`.trim();
 }
 
-function showPdfReady() {
+function setPdfImportReady(importId, saveMessage, pdfMessage) {
+  lastSavedImportId = importId;
+  savedImportIdInput.value = importId;
+  showSaveStatus(saveMessage, "ok");
+  showPdfReady(pdfMessage);
+}
+
+function showPdfReady(messageText) {
   pdfPanel.hidden = false;
   pdfButton.disabled = false;
   pdfLinkWrap.hidden = true;
-  showPdfStatus("保存成功後の次の操作として、PDFを作成できます。", "");
+  showPdfStatus(messageText || "保存成功後の次の操作として、PDFを作成できます。", "");
 }
 
 function resetPdfState() {
@@ -400,6 +490,17 @@ function resetPdfState() {
 function showPdfStatus(text, status) {
   pdfStatus.textContent = text;
   pdfStatus.className = `save-status ${status}`.trim();
+}
+
+function showSavedPdfStatus(text, status) {
+  savedPdfStatus.textContent = text;
+  savedPdfStatus.className = `save-status ${status}`.trim();
+}
+
+function showPdfLink(linkElement, wrapElement, response) {
+  linkElement.href = response.pdf_url;
+  linkElement.textContent = response.filename || "PDFを開く";
+  wrapElement.hidden = false;
 }
 
 function formatCurrency(value) {

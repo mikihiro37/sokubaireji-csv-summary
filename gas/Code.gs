@@ -94,11 +94,13 @@ function handleSave_(payload) {
   var detailsSheet = setupSheet(spreadsheet, SHEETS.sales_details);
   var summarySheet = setupSheet(spreadsheet, SHEETS.product_summary);
 
-  if (hasDuplicateHash(importsSheet, payload.import.csv_hash)) {
+  var existingImportId = findImportIdByCsvHash_(importsSheet, payload.import.csv_hash);
+  if (existingImportId) {
     return {
       ok: false,
       code: "duplicate_csv_hash",
       message: "同じCSVハッシュの取込ログがすでに存在します。",
+      existing_import_id: existingImportId,
     };
   }
 
@@ -279,19 +281,22 @@ function appendObjects(sheet, headers, rows) {
   sheet.getRange(sheet.getLastRow() + 1, 1, values.length, headers.length).setValues(values);
 }
 
-function hasDuplicateHash(sheet, csvHash) {
+function findImportIdByCsvHash_(sheet, csvHash) {
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return false;
+  if (lastRow < 2) return "";
 
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var hashColumn = headers.indexOf("csv_hash") + 1;
-  if (hashColumn === 0) return false;
+  var importIdColumn = headers.indexOf("import_id") + 1;
+  if (hashColumn === 0 || importIdColumn === 0) return "";
 
-  var hashValues = sheet.getRange(2, hashColumn, lastRow - 1, 1).getValues();
-  for (var i = 0; i < hashValues.length; i += 1) {
-    if (hashValues[i][0] === csvHash) return true;
+  var values = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  for (var i = 0; i < values.length; i += 1) {
+    if (values[i][hashColumn - 1] === csvHash) {
+      return values[i][importIdColumn - 1] || "";
+    }
   }
-  return false;
+  return "";
 }
 
 function getImportRecord_(spreadsheet, importId) {

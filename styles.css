@@ -272,6 +272,10 @@ button:disabled {
   color: var(--error);
 }
 
+.saved-pdf-section {
+  padding: 22px;
+}
+
 .pdf-panel {
   display: grid;
   grid-template-columns: 1fr auto;
