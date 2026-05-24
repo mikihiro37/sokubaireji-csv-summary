@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>即売レジCSV集計</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="upload-panel" aria-labelledby="app-title">
+        <div>
+          <p class="eyebrow">Phase 3 MVP</p>
+          <h1 id="app-title">即売レジCSV集計</h1>
+          <p class="lead">CSV/ZIPを読み込み、保存とPDF作成を行います。</p>
+          <div class="header-actions">
+            <span id="settingsState" class="settings-state">保存設定：未設定</span>
+            <button id="settingsToggle" class="text-button" type="button">設定</button>
+            <button id="aboutButton" class="text-button" type="button">このツールについて</button>
+          </div>
+        </div>
+        <label class="file-drop">
+          <span class="file-drop__label">CSV/ZIPを選ぶ</span>
+          <span class="file-drop__hint">CSV / ZIPに対応</span>
+          <input id="csvFile" type="file" accept=".csv,.zip,text/csv,application/zip" />
+        </label>
+      </section>
+
+      <section id="noticeBanner" class="notice-banner" aria-label="このツールについて" hidden>
+        <p>このツールは売上集計補助です。正式帳簿や税務判断を行うものではありません。</p>
+        <div class="notice-actions">
+          <button id="noticeClose" class="text-button" type="button">閉じる</button>
+        </div>
+      </section>
+
+      <section id="settingsPanel" class="section-block settings-panel" aria-labelledby="settings-title" hidden>
+        <div class="section-header">
+          <h2 id="settings-title">設定</h2>
+          <p class="section-note">保存とPDF作成に使う接続情報です。</p>
+        </div>
+        <form id="settingsForm" class="save-form">
+          <label class="wide-field">
+            <span>Apps Script WebアプリURL</span>
+            <input id="appsScriptUrl" type="url" inputmode="url" autocomplete="off" />
+          </label>
+          <label class="wide-field">
+            <span>保存用トークン</span>
+            <input id="saveToken" type="password" autocomplete="off" />
+          </label>
+          <div class="form-actions">
+            <button id="settingsSaveButton" type="submit">設定を保存</button>
+            <button id="settingsClose" class="secondary-button" type="button">閉じる</button>
+            <p id="settingsStatus" class="save-status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
+
+      <section id="message" class="message" hidden></section>
+
+      <section class="steps-panel" aria-label="操作手順">
+        <ol class="steps-list">
+          <li>CSV/ZIPを選ぶ</li>
+          <li>内容確認</li>
+          <li>保存する</li>
+          <li>PDFを作る</li>
+        </ol>
+      </section>
+
+      <section class="section-block saved-imports-section" aria-labelledby="saved-imports-title">
+        <div class="section-header">
+          <h2 id="saved-imports-title">保存済みデータ</h2>
+          <p class="section-note">保存済みデータからPDFを作成できます。</p>
+        </div>
+        <div class="saved-imports-actions">
+          <button id="loadImportsButton" type="button">最近の取込を表示</button>
+          <p id="savedImportsStatus" class="save-status" aria-live="polite"></p>
+        </div>
+        <div id="savedImportsTableWrap" class="table-wrap" hidden>
+          <table>
+            <thead>
+              <tr>
+                <th>イベント日</th>
+                <th>イベント名</th>
+                <th>出店者</th>
+                <th>売上合計</th>
+                <th>販売点数</th>
+                <th>一致確認</th>
+                <th>PDF</th>
+              </tr>
+            </thead>
+            <tbody id="savedImportsBody"></tbody>
+          </table>
+        </div>
+        <p id="savedPdfLinkWrap" class="pdf-link-wrap saved-imports-link" hidden>
+          <a id="savedPdfLink" href="#" target="_blank" rel="noopener">PDFを開く</a>
+        </p>
+      </section>
+
+      <section id="result" class="result" hidden>
+        <div class="summary-grid" id="summaryCards"></div>
+
+        <section class="section-block" id="fileListSection" aria-labelledby="files-title" hidden>
+          <div class="section-header">
+            <h2 id="files-title">取込ファイル一覧</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>状態</th>
+                  <th>ファイル名</th>
+                  <th>会計数</th>
+                  <th>販売点数</th>
+                  <th>売上合計</th>
+                  <th>確認</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="fileListBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="save-title">
+          <div class="section-header">
+            <h2 id="save-title">保存する</h2>
+          </div>
+          <form id="saveForm" class="save-form">
+            <label>
+              <span>イベント名</span>
+              <input id="eventName" type="text" autocomplete="off" required />
+            </label>
+            <label>
+              <span>イベント日</span>
+              <input id="eventDate" type="date" required />
+            </label>
+            <label>
+              <span>出店者名</span>
+              <input id="sellerName" type="text" autocomplete="off" required />
+            </label>
+            <div class="form-actions">
+              <button id="saveButton" type="submit">保存する</button>
+              <p id="saveStatus" class="save-status" aria-live="polite"></p>
+            </div>
+          </form>
+          <div id="pdfPanel" class="pdf-panel" hidden>
+            <div>
+              <h3>次の操作</h3>
+              <p>保存済みデータからPDFを作成できます。PDFはアプリ所有者のGoogle Driveに保存されます。</p>
+            </div>
+            <button id="pdfButton" type="button">PDFを作成</button>
+            <p id="pdfStatus" class="save-status" aria-live="polite"></p>
+            <p id="pdfLinkWrap" class="pdf-link-wrap" hidden>
+              <a id="pdfLink" href="#" target="_blank" rel="noopener">PDFを開く</a>
+            </p>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="checks-title">
+          <div class="section-header">
+            <h2 id="checks-title">一致確認</h2>
+            <p class="section-note">CSV内の集計行とアプリ側の計算結果を照合しています。</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>確認項目</th>
+                  <th>計算結果</th>
+                  <th>CSV記載</th>
+                  <th>状態</th>
+                </tr>
+              </thead>
+              <tbody id="checksBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="products-title">
+          <div class="section-header">
+            <h2 id="products-title">商品別集計</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>列</th>
+                  <th>商品名</th>
+                  <th>販売数</th>
+                  <th>CSV合計数</th>
+                  <th>商品別売上額</th>
+                  <th>参考単価</th>
+                  <th>内部キー</th>
+                </tr>
+              </thead>
+              <tbody id="productsBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="section-block" aria-labelledby="sales-title">
+          <div class="section-header">
+            <h2 id="sales-title">会計別売上</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>日時</th>
+                  <th>商品数</th>
+                  <th>小計</th>
+                  <th>明細</th>
+                </tr>
+              </thead>
+              <tbody id="salesBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.mjs"></script>
+  </body>
+</html>
