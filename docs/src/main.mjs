@@ -229,7 +229,7 @@ pdfButton.addEventListener("click", async () => {
     showPdfStatus(error instanceof Error ? error.message : "控えPDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
     pdfButton.disabled = false;
-    pdfButton.textContent = "控えPDFを作成";
+    pdfButton.textContent = "PDFを作成";
   }
 });
 
@@ -627,7 +627,7 @@ function resetPdfState() {
   lastSavedImportId = "";
   pdfPanel.hidden = true;
   pdfButton.disabled = false;
-  pdfButton.textContent = "控えPDFを作成";
+  pdfButton.textContent = "PDFを作成";
   pdfStatus.textContent = "";
   pdfStatus.className = "save-status";
   pdfLink.href = "#";
