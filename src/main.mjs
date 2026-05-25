@@ -46,6 +46,14 @@ const APPS_SCRIPT_URL_STORAGE_KEY = "sokubai.appsScriptUrl";
 const SAVE_TOKEN_STORAGE_KEY = "sokubai.saveToken";
 const NOTICE_DISMISSED_STORAGE_KEY = "sokubai_notice_dismissed";
 const SAVED_IMPORTS_DISPLAY_LIMIT = 10;
+const DELETE_IMPORT_CONFIRM_MESSAGE = [
+  "この保存済みの売上を一覧から削除します。",
+  "",
+  "売上ファイル自体や作成済みPDFは自動では削除されません。",
+  "必要な場合は、即売レジから売上ファイルをもう一度取得して再保存できます。",
+  "",
+  "削除してよろしいですか？",
+].join("\n");
 let currentParsed = null;
 let currentCsvText = "";
 let currentFileName = "";
@@ -247,9 +255,7 @@ loadImportsButton.addEventListener("click", async () => {
     localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, appsScriptUrl);
     localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveToken);
 
-    const response = await listImports(appsScriptUrl, saveToken);
-    const visibleCount = renderSavedImports(response.imports || []);
-    showSavedImportsStatus(visibleCount ? `保存済みの売上一覧を最新${visibleCount}件まで表示しています。` : "保存済みの売上はありません。", "ok");
+    await refreshSavedImports(appsScriptUrl, saveToken);
   } catch (error) {
     showSavedImportsStatus(error instanceof Error ? error.message : "保存済みの売上一覧を表示できませんでした。", "error");
   } finally {
@@ -259,12 +265,8 @@ loadImportsButton.addEventListener("click", async () => {
 });
 
 savedImportsBody.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-import-id]");
-  if (!button) return;
-
   const appsScriptUrl = appsScriptUrlInput.value.trim();
   const saveToken = saveTokenInput.value.trim();
-  const importId = button.dataset.importId;
 
   if (!appsScriptUrl || !saveToken) {
     showSavedImportsStatus("保存先設定を確認してください。", "error");
@@ -272,13 +274,37 @@ savedImportsBody.addEventListener("click", async (event) => {
     return;
   }
 
+  const deleteButton = event.target.closest("[data-delete-import-id]");
+  if (deleteButton) {
+    if (!window.confirm(DELETE_IMPORT_CONFIRM_MESSAGE)) return;
+
+    try {
+      deleteButton.disabled = true;
+      deleteButton.textContent = "削除しています…";
+      savedPdfLinkWrap.hidden = true;
+      showSavedImportsStatus("保存済みの売上を一覧から削除しています。", "");
+
+      await deleteImport(appsScriptUrl, saveToken, deleteButton.dataset.deleteImportId);
+      await refreshSavedImports(appsScriptUrl, saveToken, "保存済みの売上を一覧から削除しました。");
+    } catch (error) {
+      showSavedImportsStatus(error instanceof Error ? error.message : "保存済みの売上を一覧から削除できませんでした。", "error");
+    } finally {
+      deleteButton.disabled = false;
+      deleteButton.textContent = "一覧から削除";
+    }
+    return;
+  }
+
+  const button = event.target.closest("[data-pdf-import-id]");
+  if (!button) return;
+
   try {
     button.disabled = true;
     button.textContent = "作成中…";
     savedPdfLinkWrap.hidden = true;
     showSavedImportsStatus("控えPDFを作成しています。", "");
 
-    const response = await createPdf(appsScriptUrl, saveToken, importId);
+    const response = await createPdf(appsScriptUrl, saveToken, button.dataset.pdfImportId);
     showPdfLink(savedPdfLink, savedPdfLinkWrap, response);
     showSavedImportsStatus("控えPDFを作成しました。", "ok");
   } catch (error) {
@@ -519,6 +545,32 @@ async function listImports(appsScriptUrl, saveToken) {
   return response;
 }
 
+async function deleteImport(appsScriptUrl, saveToken, importId) {
+  const response = await postToAppsScript(appsScriptUrl, {
+    action: "delete_import",
+    token: saveToken,
+    import_id: importId,
+  });
+
+  if (!response.ok) {
+    throw new Error(response.message ?? "保存済みの売上を一覧から削除できませんでした。");
+  }
+
+  return response;
+}
+
+async function refreshSavedImports(appsScriptUrl, saveToken, successMessage = "") {
+  const response = await listImports(appsScriptUrl, saveToken);
+  const visibleCount = renderSavedImports(response.imports || []);
+  if (successMessage) {
+    showSavedImportsStatus(successMessage, "ok");
+    return visibleCount;
+  }
+
+  showSavedImportsStatus(visibleCount ? `保存済みの売上一覧を最新${visibleCount}件まで表示しています。` : "保存済みの売上はありません。", "ok");
+  return visibleCount;
+}
+
 function guessEventDate(parsed, fileName) {
   const firstDate = parsed.transactions[0]?.dateTime?.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
   if (firstDate) {
@@ -627,7 +679,8 @@ function renderSavedImports(imports) {
         <td>${escapeHtml(formatDateTimeValue(item.imported_at))}</td>
         <td>
           <div class="saved-import-operation">
-            <button class="small-button" type="button" data-import-id="${escapeHtml(item.import_id)}">控えPDFを作成</button>
+            <button class="small-button" type="button" data-pdf-import-id="${escapeHtml(item.import_id)}">控えPDFを作成</button>
+            <button class="small-button delete-button" type="button" data-delete-import-id="${escapeHtml(item.import_id)}">一覧から削除</button>
             <details class="row-details">
               <summary>詳細</summary>
               <dl>

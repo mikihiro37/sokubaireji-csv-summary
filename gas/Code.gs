@@ -21,6 +21,7 @@ var SHEETS = {
       "status",
       "csv_hash",
       "warning_message",
+      "deleted_at",
     ],
   },
   sales_details: {
@@ -75,6 +76,9 @@ function doPost(e) {
     }
     if (action === "list_imports") {
       return jsonResponse(handleListImports_(payload));
+    }
+    if (action === "delete_import") {
+      return jsonResponse(handleDeleteImport_(payload));
     }
 
     throwAppError("unknown_action", "未対応の処理です。");
@@ -144,12 +148,12 @@ function handleListImports_(payload) {
 
   try {
     var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
-    var sheet = spreadsheet.getSheetByName(SHEETS.imports.name);
-    if (!sheet) {
-      throwAppError("imports_not_found", "保存済みデータが見つかりません。");
-    }
+    var sheet = setupSheet(spreadsheet, SHEETS.imports);
 
     var rows = objectsFromSheet_(sheet);
+    rows = rows.filter(function(row) {
+      return !row.deleted_at;
+    });
     rows.sort(function(a, b) {
       return getTimeValue_(b.imported_at) - getTimeValue_(a.imported_at);
     });
@@ -175,6 +179,27 @@ function handleListImports_(payload) {
     logPdfError_("list_imports_failed", error);
     throwAppError("list_imports_failed", "保存済みデータを読み込めませんでした。");
   }
+}
+
+function handleDeleteImport_(payload) {
+  if (!payload.import_id) {
+    throwAppError("missing_import_id", "取込IDが指定されていません。");
+  }
+
+  var spreadsheet = SpreadsheetApp.openById(getSpreadsheetId_());
+  var sheet = setupSheet(spreadsheet, SHEETS.imports);
+  var result = markImportDeleted_(sheet, payload.import_id);
+
+  if (!result.found) {
+    throwAppError("import_not_found", "指定された保存済みの売上が見つかりません。");
+  }
+
+  return {
+    ok: true,
+    import_id: payload.import_id,
+    deleted: result.deleted,
+    already_deleted: result.alreadyDeleted,
+  };
 }
 
 function createSalesSummaryPdf(importId) {
@@ -232,9 +257,10 @@ function formatSheets() {
       status: 90,
       csv_hash: 150,
       warning_message: 280,
+      deleted_at: 150,
     },
     dateColumns: ["event_date"],
-    dateTimeColumns: ["imported_at"],
+    dateTimeColumns: ["imported_at", "deleted_at"],
     currencyColumns: ["csv_total", "calculated_total", "difference"],
     numberColumns: ["transaction_count", "product_count", "total_quantity"],
     centerColumns: ["status"],
@@ -403,18 +429,32 @@ function throwAppError(code, message) {
 
 function setupSheet(spreadsheet, sheetConfig) {
   var sheet = spreadsheet.getSheetByName(sheetConfig.name) || spreadsheet.insertSheet(sheetConfig.name);
-  var headerRange = sheet.getRange(1, 1, 1, sheetConfig.headers.length);
+  var headerColumnCount = Math.max(sheet.getLastColumn(), sheetConfig.headers.length);
+  var headerRange = sheet.getRange(1, 1, 1, headerColumnCount);
   var currentHeaders = headerRange.getValues()[0];
   var needsHeader = currentHeaders.every(function(cell) {
     return cell === "";
   });
 
   if (needsHeader) {
-    headerRange.setValues([sheetConfig.headers]);
+    sheet.getRange(1, 1, 1, sheetConfig.headers.length).setValues([sheetConfig.headers]);
     sheet.setFrozenRows(1);
+  } else {
+    ensureHeaders_(sheet, currentHeaders, sheetConfig.headers);
   }
 
   return sheet;
+}
+
+function ensureHeaders_(sheet, currentHeaders, expectedHeaders) {
+  expectedHeaders.forEach(function(header) {
+    if (currentHeaders.indexOf(header) !== -1) return;
+
+    var blankIndex = currentHeaders.indexOf("");
+    var column = blankIndex === -1 ? currentHeaders.length + 1 : blankIndex + 1;
+    sheet.getRange(1, column).setValue(header);
+    currentHeaders[column - 1] = header;
+  });
 }
 
 function formatSheet_(spreadsheet, sheetConfig, roleMemo, formatConfig) {
@@ -506,15 +546,45 @@ function findImportIdByCsvHash_(sheet, csvHash) {
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var hashColumn = headers.indexOf("csv_hash") + 1;
   var importIdColumn = headers.indexOf("import_id") + 1;
+  var deletedAtColumn = headers.indexOf("deleted_at") + 1;
   if (hashColumn === 0 || importIdColumn === 0) return "";
 
   var values = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
   for (var i = 0; i < values.length; i += 1) {
+    if (deletedAtColumn > 0 && values[i][deletedAtColumn - 1]) continue;
     if (values[i][hashColumn - 1] === csvHash) {
       return values[i][importIdColumn - 1] || "";
     }
   }
   return "";
+}
+
+function markImportDeleted_(sheet, importId) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return { found: false, deleted: false, alreadyDeleted: false };
+  }
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var importIdColumn = headers.indexOf("import_id") + 1;
+  var deletedAtColumn = headers.indexOf("deleted_at") + 1;
+  if (importIdColumn === 0 || deletedAtColumn === 0) {
+    return { found: false, deleted: false, alreadyDeleted: false };
+  }
+
+  var values = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
+  for (var i = 0; i < values.length; i += 1) {
+    if (values[i][importIdColumn - 1] !== importId) continue;
+
+    if (values[i][deletedAtColumn - 1]) {
+      return { found: true, deleted: false, alreadyDeleted: true };
+    }
+
+    sheet.getRange(i + 2, deletedAtColumn).setValue(new Date());
+    return { found: true, deleted: true, alreadyDeleted: false };
+  }
+
+  return { found: false, deleted: false, alreadyDeleted: false };
 }
 
 function getImportRecord_(spreadsheet, importId) {

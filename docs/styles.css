@@ -362,6 +362,17 @@ button:disabled {
   justify-items: start;
 }
 
+.delete-button {
+  border: 1px solid #efb3ae;
+  color: var(--error);
+  background: #fff;
+}
+
+.delete-button:hover {
+  color: #fff;
+  background: var(--error);
+}
+
 .row-details {
   color: var(--muted);
   font-size: 12px;
