@@ -45,6 +45,7 @@ const savedPdfPrintButton = document.querySelector("#savedPdfPrintButton");
 const APPS_SCRIPT_URL_STORAGE_KEY = "sokubai.appsScriptUrl";
 const SAVE_TOKEN_STORAGE_KEY = "sokubai.saveToken";
 const NOTICE_DISMISSED_STORAGE_KEY = "sokubai_notice_dismissed";
+const SAVED_IMPORTS_DISPLAY_LIMIT = 10;
 let currentParsed = null;
 let currentCsvText = "";
 let currentFileName = "";
@@ -247,8 +248,8 @@ loadImportsButton.addEventListener("click", async () => {
     localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveToken);
 
     const response = await listImports(appsScriptUrl, saveToken);
-    renderSavedImports(response.imports || []);
-    showSavedImportsStatus(response.imports?.length ? "最近の取込を表示しました。" : "保存済みデータはありません。", "ok");
+    const visibleCount = renderSavedImports(response.imports || []);
+    showSavedImportsStatus(visibleCount ? `最新${visibleCount}件を表示しています。` : "保存済みデータはありません。", "ok");
   } catch (error) {
     showSavedImportsStatus(error instanceof Error ? error.message : "保存済みデータを読み込めませんでした。", "error");
   } finally {
@@ -508,7 +509,7 @@ async function listImports(appsScriptUrl, saveToken) {
   const response = await postToAppsScript(appsScriptUrl, {
     action: "list_imports",
     token: saveToken,
-    limit: 20,
+    limit: SAVED_IMPORTS_DISPLAY_LIMIT,
   });
 
   if (!response.ok) {
@@ -610,8 +611,12 @@ function openPdfForPrint(pdfUrl, showStatus) {
 }
 
 function renderSavedImports(imports) {
-  savedImportsTableWrap.hidden = imports.length === 0;
-  savedImportsBody.innerHTML = imports
+  const visibleImports = [...imports]
+    .sort((a, b) => getImportTimeValue(b.imported_at) - getImportTimeValue(a.imported_at))
+    .slice(0, SAVED_IMPORTS_DISPLAY_LIMIT);
+
+  savedImportsTableWrap.hidden = visibleImports.length === 0;
+  savedImportsBody.innerHTML = visibleImports
     .map((item) => `
       <tr>
         <td>${escapeHtml(formatDateValue(item.event_date))}</td>
@@ -634,6 +639,15 @@ function renderSavedImports(imports) {
       </tr>
     `)
     .join("");
+
+  return visibleImports.length;
+}
+
+function getImportTimeValue(value) {
+  if (!value) return 0;
+  const normalized = String(value).replace(" ", "T");
+  const time = Date.parse(normalized);
+  return Number.isNaN(time) ? 0 : time;
 }
 
 function normalizeStatus(status) {
