@@ -33,12 +33,14 @@ const pdfButton = document.querySelector("#pdfButton");
 const pdfStatus = document.querySelector("#pdfStatus");
 const pdfLinkWrap = document.querySelector("#pdfLinkWrap");
 const pdfLink = document.querySelector("#pdfLink");
+const pdfPrintButton = document.querySelector("#pdfPrintButton");
 const loadImportsButton = document.querySelector("#loadImportsButton");
 const savedImportsStatus = document.querySelector("#savedImportsStatus");
 const savedImportsTableWrap = document.querySelector("#savedImportsTableWrap");
 const savedImportsBody = document.querySelector("#savedImportsBody");
 const savedPdfLinkWrap = document.querySelector("#savedPdfLinkWrap");
 const savedPdfLink = document.querySelector("#savedPdfLink");
+const savedPdfPrintButton = document.querySelector("#savedPdfPrintButton");
 
 const APPS_SCRIPT_URL_STORAGE_KEY = "sokubai.appsScriptUrl";
 const SAVE_TOKEN_STORAGE_KEY = "sokubai.saveToken";
@@ -213,13 +215,17 @@ pdfButton.addEventListener("click", async () => {
     const response = await createPdf(appsScriptUrl, saveToken, lastSavedImportId);
     showPdfLink(pdfLink, pdfLinkWrap, response);
     pdfLinkWrap.hidden = false;
-    showPdfStatus("PDFを作成しました。アプリ所有者のGoogle Driveに保存されています。リンクはDriveの共有設定によっては開けない場合があります。", "ok");
+    showPdfStatus("PDFを作成しました。", "ok");
   } catch (error) {
     showPdfStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
     pdfButton.disabled = false;
     pdfButton.textContent = "PDFを作成";
   }
+});
+
+pdfPrintButton.addEventListener("click", () => {
+  openPdfForPrint(pdfPrintButton.dataset.pdfUrl, showPdfStatus);
 });
 
 loadImportsButton.addEventListener("click", async () => {
@@ -280,6 +286,10 @@ savedImportsBody.addEventListener("click", async (event) => {
     button.disabled = false;
     button.textContent = "PDF作成";
   }
+});
+
+savedPdfPrintButton.addEventListener("click", () => {
+  openPdfForPrint(savedPdfPrintButton.dataset.pdfUrl, showSavedImportsStatus);
 });
 
 function setActiveFile(index) {
@@ -549,6 +559,8 @@ function resetPdfState() {
   pdfStatus.className = "save-status";
   pdfLink.href = "#";
   pdfLink.textContent = "PDFを開く";
+  pdfPrintButton.dataset.pdfUrl = "";
+  pdfLinkWrap.querySelector("[data-pdf-file-name]").textContent = "";
   pdfLinkWrap.hidden = true;
 }
 
@@ -575,8 +587,26 @@ function updateSettingsState() {
 
 function showPdfLink(linkElement, wrapElement, response) {
   linkElement.href = response.pdf_url;
-  linkElement.textContent = response.filename || "PDFを開く";
+  linkElement.textContent = "PDFを開く";
+  const printButton = wrapElement.querySelector(".pdf-action-button--secondary");
+  const fileNameElement = wrapElement.querySelector("[data-pdf-file-name]");
+  if (printButton) {
+    printButton.dataset.pdfUrl = response.pdf_url;
+  }
+  if (fileNameElement) {
+    fileNameElement.textContent = response.filename ? `PDFファイル: ${response.filename}` : "";
+  }
   wrapElement.hidden = false;
+}
+
+function openPdfForPrint(pdfUrl, showStatus) {
+  if (!pdfUrl) {
+    showStatus("PDFのURLが見つかりません。もう一度PDFを作成してください。", "error");
+    return;
+  }
+
+  window.open(pdfUrl, "_blank", "noopener,noreferrer");
+  showStatus("PDFを開きました。印刷画面が開かない場合は、「PDFを開く」から共有・印刷してください。", "ok");
 }
 
 function renderSavedImports(imports) {

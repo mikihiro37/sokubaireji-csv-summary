@@ -403,13 +403,54 @@ button:disabled {
   color: var(--muted);
 }
 
-.pdf-link-wrap {
+.pdf-action-panel {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
 }
 
-.pdf-link-wrap a {
-  color: var(--accent-dark);
+.pdf-action-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pdf-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: #fff;
+  background: var(--accent);
+  font: inherit;
   font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pdf-action-button:hover {
+  color: #fff;
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.pdf-action-button--secondary {
+  color: var(--accent-dark);
+  background: #fff;
+}
+
+.pdf-file-name,
+.pdf-help-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pdf-help-text {
+  font-weight: 700;
 }
 
 .table-wrap {
@@ -512,8 +553,17 @@ td {
   }
 
   .steps-list,
-  .pdf-panel {
+  .pdf-panel,
+  .pdf-action-buttons {
     grid-template-columns: 1fr;
+  }
+
+  .pdf-action-buttons {
+    display: grid;
+  }
+
+  .pdf-action-button {
+    width: 100%;
   }
 
   h1 {

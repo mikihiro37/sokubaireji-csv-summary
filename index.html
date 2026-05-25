@@ -94,9 +94,14 @@
             <tbody id="savedImportsBody"></tbody>
           </table>
         </div>
-        <p id="savedPdfLinkWrap" class="pdf-link-wrap saved-imports-link" hidden>
-          <a id="savedPdfLink" href="#" target="_blank" rel="noopener">PDFを開く</a>
-        </p>
+        <div id="savedPdfLinkWrap" class="pdf-action-panel saved-imports-link" hidden>
+          <div class="pdf-action-buttons">
+            <a id="savedPdfLink" class="pdf-action-button" href="#" target="_blank" rel="noopener noreferrer">PDFを開く</a>
+            <button id="savedPdfPrintButton" class="pdf-action-button pdf-action-button--secondary" type="button">印刷する</button>
+          </div>
+          <p class="pdf-file-name" data-pdf-file-name></p>
+          <p class="pdf-help-text">印刷画面が開かない場合は、「PDFを開く」から共有・印刷してください。</p>
+        </div>
       </section>
 
       <section id="result" class="result" hidden>
@@ -153,9 +158,14 @@
             </div>
             <button id="pdfButton" type="button">PDFを作成</button>
             <p id="pdfStatus" class="save-status" aria-live="polite"></p>
-            <p id="pdfLinkWrap" class="pdf-link-wrap" hidden>
-              <a id="pdfLink" href="#" target="_blank" rel="noopener">PDFを開く</a>
-            </p>
+            <div id="pdfLinkWrap" class="pdf-action-panel" hidden>
+              <div class="pdf-action-buttons">
+                <a id="pdfLink" class="pdf-action-button" href="#" target="_blank" rel="noopener noreferrer">PDFを開く</a>
+                <button id="pdfPrintButton" class="pdf-action-button pdf-action-button--secondary" type="button">印刷する</button>
+              </div>
+              <p class="pdf-file-name" data-pdf-file-name></p>
+              <p class="pdf-help-text">印刷画面が開かない場合は、「PDFを開く」から共有・印刷してください。</p>
+            </div>
           </div>
         </section>
 
