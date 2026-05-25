@@ -356,8 +356,13 @@ button:disabled {
   padding: 0 18px 18px;
 }
 
+.saved-import-operation {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
 .row-details {
-  margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
 }

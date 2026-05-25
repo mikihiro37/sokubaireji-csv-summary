@@ -93,13 +93,13 @@ fileInput.addEventListener("change", async (event) => {
   if (!file) return;
 
   try {
-    showMessage("ファイルを読み込んでいます。", "");
+    showMessage("売上ファイルを読み込んでいます。", "");
     const sources = await readInputFile(file);
     currentFileItems = sources.map((source) => analyzeSource(source));
     const firstValidIndex = currentFileItems.findIndex((item) => item.parsed);
     if (firstValidIndex === -1) {
       result.hidden = true;
-      throw new Error("解析できるCSVがありませんでした。");
+      throw new Error("解析できる売上ファイルがありませんでした。");
     }
 
     setActiveFile(firstValidIndex);
@@ -114,14 +114,14 @@ fileInput.addEventListener("change", async (event) => {
     activeFileIndex = 0;
     result.hidden = true;
     resetPdfState();
-    showMessage(error instanceof Error ? error.message : "CSVの解析に失敗しました。", "is-error");
+    showMessage(error instanceof Error ? error.message : "売上ファイルの読み込みに失敗しました。", "is-error");
   }
 });
 
 saveForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentParsed) {
-    showSaveStatus("先にCSVを読み込んでください。", "error");
+    showSaveStatus("先に売上ファイルを読み込んでください。", "error");
     return;
   }
 
@@ -167,8 +167,8 @@ saveForm.addEventListener("submit", async (event) => {
     if (response.code === "duplicate_csv_hash" && response.existing_import_id) {
       setPdfImportReady(
         response.existing_import_id,
-        "このCSVは保存済みです。保存済みデータからPDFを作成できます。",
-        "保存済みデータからPDFを作成できます。",
+        "この売上は保存済みです。保存済みの売上から控えPDFを作成できます。",
+        "保存済みの売上から控えPDFを作成できます。",
       );
       return;
     }
@@ -184,7 +184,7 @@ saveForm.addEventListener("submit", async (event) => {
     setPdfImportReady(
       response.import_id,
       `保存しました。import_id: ${response.import_id}`,
-      "保存済みデータからPDFを作成できます。",
+      "保存済みの売上から控えPDFを作成できます。",
     );
   } catch (error) {
     resetPdfState();
@@ -209,19 +209,19 @@ pdfButton.addEventListener("click", async () => {
 
   try {
     pdfButton.disabled = true;
-    pdfButton.textContent = "PDFを作成しています…";
+    pdfButton.textContent = "控えPDFを作成しています…";
     pdfLinkWrap.hidden = true;
-    showPdfStatus("PDFを作成しています。", "");
+    showPdfStatus("控えPDFを作成しています。", "");
 
     const response = await createPdf(appsScriptUrl, saveToken, lastSavedImportId);
     showPdfLink(pdfLink, pdfLinkWrap, response);
     pdfLinkWrap.hidden = false;
-    showPdfStatus("PDFを作成しました。", "ok");
+    showPdfStatus("控えPDFを作成しました。", "ok");
   } catch (error) {
-    showPdfStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。時間をおいて再度お試しください。", "error");
+    showPdfStatus(error instanceof Error ? error.message : "控えPDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
     pdfButton.disabled = false;
-    pdfButton.textContent = "PDFを作成";
+    pdfButton.textContent = "控えPDFを作成";
   }
 });
 
@@ -241,20 +241,20 @@ loadImportsButton.addEventListener("click", async () => {
     }
 
     loadImportsButton.disabled = true;
-    loadImportsButton.textContent = "読み込み中…";
+    loadImportsButton.textContent = "表示しています…";
     savedPdfLinkWrap.hidden = true;
-    showSavedImportsStatus("保存済みデータを読み込んでいます。", "");
+    showSavedImportsStatus("保存済みの売上一覧を表示しています。", "");
     localStorage.setItem(APPS_SCRIPT_URL_STORAGE_KEY, appsScriptUrl);
     localStorage.setItem(SAVE_TOKEN_STORAGE_KEY, saveToken);
 
     const response = await listImports(appsScriptUrl, saveToken);
     const visibleCount = renderSavedImports(response.imports || []);
-    showSavedImportsStatus(visibleCount ? `最新${visibleCount}件を表示しています。` : "保存済みデータはありません。", "ok");
+    showSavedImportsStatus(visibleCount ? `保存済みの売上一覧を最新${visibleCount}件まで表示しています。` : "保存済みの売上はありません。", "ok");
   } catch (error) {
-    showSavedImportsStatus(error instanceof Error ? error.message : "保存済みデータを読み込めませんでした。", "error");
+    showSavedImportsStatus(error instanceof Error ? error.message : "保存済みの売上一覧を表示できませんでした。", "error");
   } finally {
     loadImportsButton.disabled = false;
-    loadImportsButton.textContent = "最近の取込を表示";
+    loadImportsButton.textContent = "保存済みの売上一覧を見る";
   }
 });
 
@@ -276,16 +276,16 @@ savedImportsBody.addEventListener("click", async (event) => {
     button.disabled = true;
     button.textContent = "作成中…";
     savedPdfLinkWrap.hidden = true;
-    showSavedImportsStatus("PDFを作成しています。", "");
+    showSavedImportsStatus("控えPDFを作成しています。", "");
 
     const response = await createPdf(appsScriptUrl, saveToken, importId);
     showPdfLink(savedPdfLink, savedPdfLinkWrap, response);
-    showSavedImportsStatus("PDFを作成しました。", "ok");
+    showSavedImportsStatus("控えPDFを作成しました。", "ok");
   } catch (error) {
-    showSavedImportsStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。時間をおいて再度お試しください。", "error");
+    showSavedImportsStatus(error instanceof Error ? error.message : "控えPDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
     button.disabled = false;
-    button.textContent = "PDF作成";
+    button.textContent = "控えPDFを作成";
   }
 });
 
@@ -362,7 +362,7 @@ function renderFileList() {
           <td class="number">${formatNumber(item.parsed.totals.calculatedQuantity)}</td>
           <td class="number">${formatCurrency(item.parsed.totals.calculatedAmount)}</td>
           <td>${allChecksOk ? "一致" : "要確認"}</td>
-          <td><button class="small-button" type="button" data-file-index="${index}" ${selected ? "disabled" : ""}>${selected ? "選択中" : "このCSVを表示"}</button></td>
+          <td><button class="small-button" type="button" data-file-index="${index}" ${selected ? "disabled" : ""}>${selected ? "選択中" : "読み込んだ内容を確認"}</button></td>
         </tr>
       `;
     })
@@ -450,7 +450,7 @@ function analyzeSource(source) {
     return {
       ...source,
       parsed: null,
-      errorMessage: error instanceof Error ? error.message : "CSVの解析に失敗しました。",
+      errorMessage: error instanceof Error ? error.message : "売上ファイルの読み込みに失敗しました。",
     };
   }
 }
@@ -461,7 +461,7 @@ function buildLoadMessage(fileName, items) {
   if (items.length === 1) {
     return `${fileName} を解析しました。`;
   }
-  return `${fileName} からCSV ${items.length}件を読み込みました。解析OK: ${okCount}件、要確認: ${errorCount}件`;
+  return `${fileName} から売上データ ${items.length}件を読み込みました。確認OK: ${okCount}件、要確認: ${errorCount}件`;
 }
 
 async function postToAppsScript(url, payload) {
@@ -496,7 +496,7 @@ async function createPdf(appsScriptUrl, saveToken, importId) {
   });
 
   if (!response.ok) {
-    throw new Error(response.message ?? "PDF作成に失敗しました。");
+    throw new Error(response.message ?? "控えPDFの作成に失敗しました。");
   }
   if (!response.pdf_url) {
     throw new Error("保存先からPDF URLが返りませんでした。");
@@ -513,7 +513,7 @@ async function listImports(appsScriptUrl, saveToken) {
   });
 
   if (!response.ok) {
-    throw new Error(response.message ?? "保存済みデータを読み込めませんでした。");
+    throw new Error(response.message ?? "保存済みの売上一覧を表示できませんでした。");
   }
 
   return response;
@@ -548,14 +548,14 @@ function showPdfReady(messageText) {
   pdfPanel.hidden = false;
   pdfButton.disabled = false;
   pdfLinkWrap.hidden = true;
-  showPdfStatus(messageText || "保存成功後の次の操作として、PDFを作成できます。", "");
+  showPdfStatus(messageText || "保存成功後の次の操作として、控えPDFを作成できます。", "");
 }
 
 function resetPdfState() {
   lastSavedImportId = "";
   pdfPanel.hidden = true;
   pdfButton.disabled = false;
-  pdfButton.textContent = "PDFを作成";
+  pdfButton.textContent = "控えPDFを作成";
   pdfStatus.textContent = "";
   pdfStatus.className = "save-status";
   pdfLink.href = "#";
@@ -602,7 +602,7 @@ function showPdfLink(linkElement, wrapElement, response) {
 
 function openPdfForPrint(pdfUrl, showStatus) {
   if (!pdfUrl) {
-    showStatus("PDFのURLが見つかりません。もう一度PDFを作成してください。", "error");
+    showStatus("PDFを開くための情報が見つかりません。もう一度控えPDFを作成してください。", "error");
     return;
   }
 
@@ -624,17 +624,19 @@ function renderSavedImports(imports) {
         <td>${escapeHtml(item.seller_name || "-")}</td>
         <td class="number">${formatCurrency(Number(item.calculated_total || 0))}</td>
         <td class="number">${formatNumber(Number(item.total_quantity || 0))}点</td>
-        <td>${renderStatus(normalizeStatus(item.status))}</td>
+        <td>${escapeHtml(formatDateTimeValue(item.imported_at))}</td>
         <td>
-          <button class="small-button" type="button" data-import-id="${escapeHtml(item.import_id)}">PDF作成</button>
-          <details class="row-details">
-            <summary>詳細</summary>
-            <dl>
-              <dt>取込ID</dt><dd>${escapeHtml(item.import_id || "-")}</dd>
-              <dt>CSV</dt><dd>${escapeHtml(item.source_file_name || "-")}</dd>
-              <dt>取込日時</dt><dd>${escapeHtml(formatDateTimeValue(item.imported_at))}</dd>
-            </dl>
-          </details>
+          <div class="saved-import-operation">
+            <button class="small-button" type="button" data-import-id="${escapeHtml(item.import_id)}">控えPDFを作成</button>
+            <details class="row-details">
+              <summary>詳細</summary>
+              <dl>
+                <dt>管理ID</dt><dd>${escapeHtml(item.import_id || "-")}</dd>
+                <dt>元の売上ファイル</dt><dd>${escapeHtml(item.source_file_name || "-")}</dd>
+                <dt>一致確認</dt><dd>${renderStatus(normalizeStatus(item.status))}</dd>
+              </dl>
+            </details>
+          </div>
         </td>
       </tr>
     `)
