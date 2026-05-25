@@ -311,7 +311,7 @@ savedImportsBody.addEventListener("click", async (event) => {
     showSavedImportsStatus(error instanceof Error ? error.message : "控えPDFを作成できませんでした。時間をおいて再度お試しください。", "error");
   } finally {
     button.disabled = false;
-    button.textContent = "控えPDFを作成";
+    button.textContent = "PDFを作成";
   }
 });
 
@@ -699,7 +699,7 @@ function renderSavedImports(imports) {
         <td>${escapeHtml(formatDateTimeValue(item.imported_at))}</td>
         <td>
           <div class="saved-import-operation">
-            <button class="small-button" type="button" data-pdf-import-id="${escapeHtml(item.import_id)}">控えPDFを作成</button>
+            <button class="small-button" type="button" data-pdf-import-id="${escapeHtml(item.import_id)}">PDFを作成</button>
             <button class="small-button delete-button" type="button" data-delete-import-id="${escapeHtml(item.import_id)}">一覧から削除</button>
             <details class="row-details">
               <summary>詳細</summary>
