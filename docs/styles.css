@@ -362,6 +362,12 @@ button:disabled {
   justify-items: start;
 }
 
+.loaded-sale-source {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
 .delete-button {
   border: 1px solid #efb3ae;
   color: var(--error);

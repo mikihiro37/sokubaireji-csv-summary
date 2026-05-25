@@ -368,7 +368,7 @@ function renderFileList() {
         return `
           <tr>
             <td>${renderStatus("error")}</td>
-            <td>${escapeHtml(item.sourceFileName)}</td>
+            <td>${renderLoadedSaleSource(item.sourceFileName)}</td>
             <td class="number">-</td>
             <td class="number">-</td>
             <td class="number">-</td>
@@ -383,16 +383,36 @@ function renderFileList() {
       return `
         <tr>
           <td>${renderStatus(allChecksOk ? "ok" : "warn")}</td>
-          <td>${escapeHtml(item.sourceFileName)}</td>
+          <td>${renderLoadedSaleSource(item.sourceFileName)}</td>
           <td class="number">${formatNumber(item.parsed.totals.transactionCount)}</td>
           <td class="number">${formatNumber(item.parsed.totals.calculatedQuantity)}</td>
           <td class="number">${formatCurrency(item.parsed.totals.calculatedAmount)}</td>
           <td>${allChecksOk ? "一致" : "要確認"}</td>
-          <td><button class="small-button" type="button" data-file-index="${index}" ${selected ? "disabled" : ""}>${selected ? "選択中" : "読み込んだ内容を確認"}</button></td>
+          <td><button class="small-button" type="button" data-file-index="${index}" ${selected ? "disabled" : ""}>${selected ? "選択中" : "内容を確認"}</button></td>
         </tr>
       `;
     })
     .join("");
+}
+
+function renderLoadedSaleSource(sourceFileName) {
+  return `
+    <div class="loaded-sale-source">
+      <span>${escapeHtml(formatSaleDateFromFileName(sourceFileName) || sourceFileName)}</span>
+      <details class="row-details">
+        <summary>詳細</summary>
+        <dl>
+          <dt>元の売上ファイル</dt><dd>${escapeHtml(sourceFileName || "-")}</dd>
+        </dl>
+      </details>
+    </div>
+  `;
+}
+
+function formatSaleDateFromFileName(fileName) {
+  const match = String(fileName).match(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/);
+  if (!match) return "";
+  return `${match[1]}/${match[2]}/${match[3]} ${match[4]}:${match[5]}`;
 }
 
 function renderChecks(checks) {
