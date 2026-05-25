@@ -6,6 +6,7 @@
   "scripts": {
     "build:pages": "bash scripts/build-pages.sh",
     "check:pages": "bash scripts/check-pages-safe.sh",
+    "predeploy:pages": "bash scripts/predeploy-pages-check.sh",
     "test": "node tests/parser.test.mjs && node tests/fileLoader.test.mjs"
   },
   "dependencies": {

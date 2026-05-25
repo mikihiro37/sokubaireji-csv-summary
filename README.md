@@ -152,9 +152,19 @@ npm run build:pages
 npm run check:pages
 ```
 
+公開直前には、以下の公開前チェックを実行します。
+
+```bash
+npm run predeploy:pages
+```
+
 `build:pages` は、`index.html`、`styles.css`、`src/` の必要ファイル、`vendor/jszip.min.js` を `docs/` へコピーします。保存先URL、接続キー、スプレッドシートID、DriveフォルダID、Script IDはコードや `docs/` に埋め込まないでください。
 
 `check:pages` は、`docs/` に公開不要ファイルや実ID・実接続キーらしき値が含まれていないかを確認します。GitHub Pages公開前に必ず実行してください。
+
+`predeploy:pages` は、`docs/` の再生成、安全確認、公開対象ファイル一覧、追加の危険候補チェック、Git状態、Git差分概要をまとめて表示します。Cloudflare Pages Direct Uploadを使う場合は、成功後に `docs/` フォルダそのものではなく、`docs/` の中身だけをアップロードしてください。このスクリプトは自動アップロードを行いません。
+
+公開URLを共有する前に、Safari、Chrome、iPad Safariで警告表示、画面表示、保存、保存済み一覧、PDF作成を確認してください。
 
 ### iPad初回設定
 
