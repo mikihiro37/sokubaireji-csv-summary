@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>管理画面 - 即売レジ売上集計</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 16px; color: #1f2823; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .lead { color: #607069; margin-top: 0; }
+    section { margin-top: 32px; }
+    h2 { font-size: 15px; border-bottom: 1px solid #d8e1dc; padding-bottom: 4px; }
+    label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+    input[type="password"], input[type="text"] {
+      padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; font-weight: 400; width: 100%;
+    }
+    button { padding: 8px 16px; background: #2d6a4f; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #1b4332; }
+    button.danger { background: #c0392b; }
+    button.danger:hover { background: #922b21; }
+    .status { font-size: 13px; margin-top: 8px; min-height: 20px; }
+    .status.ok { color: #2d6a4f; }
+    .status.error { color: #c0392b; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+    th, td { border: 1px solid #d8e1dc; padding: 6px 10px; text-align: left; }
+    th { background: #f2f6f4; font-weight: 700; }
+    .token-box { font-family: monospace; background: #f0f4ff; border: 1px solid #b0c0ff; padding: 12px; border-radius: 6px; word-break: break-all; margin-top: 12px; }
+    .token-box strong { display: block; margin-bottom: 4px; }
+    .revoked { color: #999; text-decoration: line-through; }
+    #loginSection { max-width: 400px; }
+    #mainSection { display: none; }
+  </style>
+</head>
+<body>
+  <h1>管理画面</h1>
+  <p class="lead">テナント・接続キーの管理</p>
+
+  <!-- ログイン -->
+  <section id="loginSection">
+    <h2>管理者認証</h2>
+    <label>管理者パスワード
+      <input id="adminToken" type="password" placeholder="管理者トークンを入力" />
+    </label>
+    <button id="loginButton" type="button">ログイン</button>
+    <p id="loginStatus" class="status"></p>
+  </section>
+
+  <!-- メイン -->
+  <div id="mainSection">
+    <!-- テナント作成 -->
+    <section>
+      <h2>新しいテナントを作成</h2>
+      <label>テナント名（顧客名など）
+        <input id="tenantName" type="text" placeholder="例：山田商店" />
+      </label>
+      <label>メモ（任意）
+        <input id="tenantNote" type="text" placeholder="例：2024年より契約" />
+      </label>
+      <button id="createButton" type="button">作成して接続キーを発行</button>
+      <p id="createStatus" class="status"></p>
+      <div id="newTokenBox" class="token-box" hidden>
+        <strong>⚠️ このキーは今後表示されません。必ずコピーして顧客に送ってください。</strong>
+        <div id="newTokenValue"></div>
+        <button style="margin-top:8px" id="copyButton" type="button">コピー</button>
+      </div>
+    </section>
+
+    <!-- テナント一覧 -->
+    <section>
+      <h2>テナント一覧</h2>
+      <button id="refreshButton" type="button">一覧を更新</button>
+      <p id="listStatus" class="status"></p>
+      <div id="tenantsWrap" hidden>
+        <table>
+          <thead>
+            <tr><th>テナント名</th><th>メモ</th><th>作成日時</th><th>状態</th><th>操作</th></tr>
+          </thead>
+          <tbody id="tenantsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    const ADMIN_API = "/admin/api";
+    let adminToken = "";
+
+    const loginSection = document.querySelector("#loginSection");
+    const mainSection  = document.querySelector("#mainSection");
+    const adminTokenInput = document.querySelector("#adminToken");
+    const loginButton  = document.querySelector("#loginButton");
+    const loginStatus  = document.querySelector("#loginStatus");
+    const tenantName   = document.querySelector("#tenantName");
+    const tenantNote   = document.querySelector("#tenantNote");
+    const createButton = document.querySelector("#createButton");
+    const createStatus = document.querySelector("#createStatus");
+    const newTokenBox  = document.querySelector("#newTokenBox");
+    const newTokenValue = document.querySelector("#newTokenValue");
+    const copyButton   = document.querySelector("#copyButton");
+    const refreshButton = document.querySelector("#refreshButton");
+    const listStatus   = document.querySelector("#listStatus");
+    const tenantsWrap  = document.querySelector("#tenantsWrap");
+    const tenantsBody  = document.querySelector("#tenantsBody");
+
+    loginButton.addEventListener("click", async () => {
+      const token = adminTokenInput.value.trim();
+      if (!token) { setStatus(loginStatus, "管理者トークンを入力してください。", "error"); return; }
+      try {
+        const res = await postAdmin({ action: "list_tenants", token });
+        if (!res.ok) throw new Error(res.message ?? "認証に失敗しました。");
+        adminToken = token;
+        loginSection.style.display = "none";
+        mainSection.style.display  = "block";
+        renderTenants(res.tenants ?? []);
+        tenantsWrap.hidden = false;
+      } catch (e) {
+        setStatus(loginStatus, e.message, "error");
+      }
+    });
+
+    createButton.addEventListener("click", async () => {
+      const name = tenantName.value.trim();
+      if (!name) { setStatus(createStatus, "テナント名を入力してください。", "error"); return; }
+      try {
+        createButton.disabled = true;
+        newTokenBox.hidden = true;
+        setStatus(createStatus, "作成しています…", "");
+        const res = await postAdmin({ action: "create_tenant", token: adminToken, name, note: tenantNote.value.trim() });
+        if (!res.ok) throw new Error(res.message ?? "作成に失敗しました。");
+        newTokenValue.textContent = res.token;
+        newTokenBox.hidden = false;
+        setStatus(createStatus, `「${res.name}」を作成しました。`, "ok");
+        tenantName.value = ""; tenantNote.value = "";
+        await refreshList();
+      } catch (e) {
+        setStatus(createStatus, e.message, "error");
+      } finally {
+        createButton.disabled = false;
+      }
+    });
+
+    copyButton.addEventListener("click", () => {
+      navigator.clipboard.writeText(newTokenValue.textContent ?? "").then(() => {
+        copyButton.textContent = "コピーしました！";
+        setTimeout(() => { copyButton.textContent = "コピー"; }, 2000);
+      });
+    });
+
+    refreshButton.addEventListener("click", async () => {
+      try {
+        refreshButton.disabled = true;
+        await refreshList();
+      } finally {
+        refreshButton.disabled = false;
+      }
+    });
+
+    tenantsBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-revoke-id]");
+      if (!btn) return;
+      if (!confirm(`このテナントの接続キーを無効化します。よろしいですか？`)) return;
+      try {
+        btn.disabled = true;
+        const res = await postAdmin({ action: "revoke_tenant", token: adminToken, tenant_id: btn.dataset.revokeId });
+        if (!res.ok) throw new Error(res.message);
+        setStatus(listStatus, "無効化しました。", "ok");
+        await refreshList();
+      } catch (e) {
+        setStatus(listStatus, e.message, "error");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    async function refreshList() {
+      setStatus(listStatus, "更新中…", "");
+      const res = await postAdmin({ action: "list_tenants", token: adminToken });
+      if (!res.ok) throw new Error(res.message ?? "一覧を取得できませんでした。");
+      renderTenants(res.tenants ?? []);
+      tenantsWrap.hidden = false;
+      setStatus(listStatus, `${res.tenants.length}件`, "ok");
+    }
+
+    function renderTenants(tenants) {
+      tenantsBody.innerHTML = tenants.map(t => {
+        const revoked = !!t.revoked_at;
+        return `<tr>
+          <td class="${revoked ? "revoked" : ""}">${esc(t.name)}</td>
+          <td>${esc(t.note || "-")}</td>
+          <td>${esc(String(t.created_at).slice(0, 16))}</td>
+          <td>${revoked ? "無効" : "有効"}</td>
+          <td>${revoked ? "-" : `<button class="danger" data-revoke-id="${esc(t.id)}" type="button">無効化</button>`}</td>
+        </tr>`;
+      }).join("");
+    }
+
+    async function postAdmin(payload) {
+      const res  = await fetch(ADMIN_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const text = await res.text();
+      try { return JSON.parse(text); } catch { throw new Error("サーバーエラーが発生しました。"); }
+    }
+
+    function setStatus(el, text, cls) { el.textContent = text; el.className = `status ${cls}`.trim(); }
+    function esc(v) { return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  </script>
+</body>
+</html>

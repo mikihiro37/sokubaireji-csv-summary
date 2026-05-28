@@ -1,15 +1,19 @@
 {
   "name": "sokubaireji-csv-summary",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build:pages": "bash scripts/build-pages.sh",
-    "check:pages": "bash scripts/check-pages-safe.sh",
-    "predeploy:pages": "bash scripts/predeploy-pages-check.sh",
-    "test": "node tests/parser.test.mjs && node tests/fileLoader.test.mjs"
+    "dev":   "wrangler dev --local",
+    "deploy": "npm run build && wrangler deploy",
+    "build": "cp -r src styles.css vendor index.html admin dist/",
+    "test":  "node tests/parser.test.mjs && node tests/fileLoader.test.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "wrangler": "^3.109.2"
   }
 }

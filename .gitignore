@@ -1,4 +1,5 @@
 node_modules/
+dist/
 
 # Local clasp config
 .clasp.json
