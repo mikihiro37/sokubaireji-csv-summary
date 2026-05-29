@@ -15,11 +15,17 @@ export function jsonError(code: string, message: string, status = 400): Response
 }
 
 /** トークンでテナントを検索し、有効なテナントを返す */
+async function hashToken(token: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function resolveTenant(db: D1Database, token: string): Promise<Tenant | null> {
   if (!token) return null;
+  const hash = await hashToken(token);
   const row = await db
-    .prepare("SELECT * FROM tenants WHERE token = ? AND revoked_at IS NULL")
-    .bind(token)
+    .prepare("SELECT * FROM tenants WHERE token_hash = ? AND revoked_at IS NULL")
+    .bind(hash)
     .first<Tenant>();
   return row ?? null;
 }

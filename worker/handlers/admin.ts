@@ -6,6 +6,11 @@ function generateToken(): string {
   return Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+async function hashToken(token: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 function generateId(): string {
   return "t_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
@@ -32,11 +37,12 @@ async function createTenant(db: D1Database, payload: Record<string, unknown>) {
 
   const id    = generateId();
   const token = generateToken();
+  const tokenHash = await hashToken(token);
   const now   = new Date().toISOString();
 
   await db.prepare(
-    "INSERT INTO tenants (id, token, name, note, created_at) VALUES (?,?,?,?,?)"
-  ).bind(id, token, name, payload.note ?? null, now).run();
+    "INSERT INTO tenants (id, token_hash, name, note, created_at) VALUES (?,?,?,?,?)"
+  ).bind(id, tokenHash, name, payload.note ?? null, now).run();
 
   return { ok: true, tenant_id: id, token, name };
 }

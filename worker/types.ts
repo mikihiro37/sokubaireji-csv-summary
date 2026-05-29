@@ -6,7 +6,7 @@ export interface Env {
 
 export interface Tenant {
   id: string;
-  token: string;
+  token_hash: string;
   name: string;
   note: string | null;
   created_at: string;
