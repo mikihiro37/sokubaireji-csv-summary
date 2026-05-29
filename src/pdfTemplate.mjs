@@ -88,6 +88,27 @@ export function printHtml(html) {
   };
 }
 
+/**
+ * html2pdf.js を使ってPDFをダウンロードする
+ * vendor/html2pdf.bundle.min.js が読み込まれている前提（グローバル変数 html2pdf）
+ */
+export async function downloadPdf(html, filename) {
+  const container = document.createElement("div");
+  container.style.cssText = "position:fixed;top:0;left:0;width:210mm;visibility:hidden;pointer-events:none;z-index:-1;";
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  try {
+    await html2pdf().set({
+      filename,
+      margin: 10,
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    }).from(container).save();
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
 function esc(v) { return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function yen(v) { return "¥" + Number(v ?? 0).toLocaleString("ja-JP"); }
 function fmt(v) { return v == null || v === "" ? "-" : Number(v).toLocaleString("ja-JP"); }

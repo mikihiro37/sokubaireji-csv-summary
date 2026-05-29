@@ -1,7 +1,7 @@
 import { parseCsvText } from "./csvParser.mjs";
 import { readInputFile } from "./fileLoader.mjs";
 import { buildSheetsPayload, createCsvHash, generateImportId } from "./sheetsPayload.mjs";
-import { buildPdfHtml, printHtml } from "./pdfTemplate.mjs";
+import { buildPdfHtml, printHtml, downloadPdf } from "./pdfTemplate.mjs";
 
 const fileInput            = document.querySelector("#csvFile");
 const message              = document.querySelector("#message");
@@ -29,7 +29,8 @@ const noticeBanner         = document.querySelector("#noticeBanner");
 const noticeClose          = document.querySelector("#noticeClose");
 const aboutButton          = document.querySelector("#aboutButton");
 const pdfPanel             = document.querySelector("#pdfPanel");
-const pdfButton            = document.querySelector("#pdfButton");
+const pdfPrintButton       = document.querySelector("#pdfPrintButton");
+const pdfDownloadButton    = document.querySelector("#pdfDownloadButton");
 const pdfStatus            = document.querySelector("#pdfStatus");
 const loadImportsButton    = document.querySelector("#loadImportsButton");
 const savedImportsStatus   = document.querySelector("#savedImportsStatus");
@@ -165,14 +166,14 @@ saveForm.addEventListener("submit", async (event) => {
 });
 
 // ===== PDF作成（クライアントサイド） =====
-pdfButton.addEventListener("click", async () => {
+pdfPrintButton.addEventListener("click", async () => {
   const saveToken = saveTokenInput.value.trim();
   if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
   if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
 
   try {
-    pdfButton.disabled = true;
-    pdfButton.textContent = "データ取得中…";
+    pdfPrintButton.disabled = true;
+    pdfPrintButton.textContent = "データ取得中…";
     showPdfStatus("データを取得しています。", "");
 
     const response = await postToApi({ action: "get_import_detail", import_id: lastSavedImportId, token: saveToken });
@@ -182,10 +183,35 @@ pdfButton.addEventListener("click", async () => {
     printHtml(html);
     showPdfStatus("印刷ダイアログを開きました。", "ok");
   } catch (error) {
-    showPdfStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。", "error");
+    showPdfStatus(error instanceof Error ? error.message : "印刷できませんでした。", "error");
   } finally {
-    pdfButton.disabled = false;
-    pdfButton.textContent = "PDFを作成";
+    pdfPrintButton.disabled = false;
+    pdfPrintButton.textContent = "印刷する";
+  }
+});
+
+pdfDownloadButton.addEventListener("click", async () => {
+  const saveToken = saveTokenInput.value.trim();
+  if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
+  if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+
+  try {
+    pdfDownloadButton.disabled = true;
+    pdfDownloadButton.textContent = "作成中…";
+    showPdfStatus("PDFを作成しています。少しお待ちください。", "");
+
+    const response = await postToApi({ action: "get_import_detail", import_id: lastSavedImportId, token: saveToken });
+    if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
+
+    const html = buildPdfHtml({ importRecord: response.import, products: response.products });
+    const filename = buildPdfFilename(response.import);
+    await downloadPdf(html, filename);
+    showPdfStatus("ダウンロードしました。", "ok");
+  } catch (error) {
+    showPdfStatus(error instanceof Error ? error.message : "ダウンロードできませんでした。", "error");
+  } finally {
+    pdfDownloadButton.disabled = false;
+    pdfDownloadButton.textContent = "ダウンロード";
   }
 });
 
@@ -232,25 +258,48 @@ savedImportsBody.addEventListener("click", async (event) => {
     return;
   }
 
-  // PDFボタン（クライアントサイド）
-  const pdfBtn = event.target.closest("[data-pdf-import-id]");
-  if (!pdfBtn) return;
-  try {
-    pdfBtn.disabled = true;
-    pdfBtn.textContent = "取得中…";
-    showSavedImportsStatus("データを取得しています。", "");
+  // PDF印刷ボタン（クライアントサイド）
+  const pdfBtn = event.target.closest("[data-pdf-print-id]");
+  if (pdfBtn) {
+    try {
+      pdfBtn.disabled = true;
+      pdfBtn.textContent = "取得中…";
+      showSavedImportsStatus("データを取得しています。", "");
 
-    const response = await postToApi({ action: "get_import_detail", import_id: pdfBtn.dataset.pdfImportId, token: saveToken });
+      const response = await postToApi({ action: "get_import_detail", import_id: pdfBtn.dataset.pdfPrintId, token: saveToken });
+      if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
+
+      const html = buildPdfHtml({ importRecord: response.import, products: response.products });
+      printHtml(html);
+      showSavedImportsStatus("印刷ダイアログを開きました。", "ok");
+    } catch (error) {
+      showSavedImportsStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。", "error");
+    } finally {
+      pdfBtn.disabled = false;
+      pdfBtn.textContent = "印刷する";
+    }
+    return;
+  }
+
+  const dlBtn = event.target.closest("[data-pdf-download-id]");
+  if (!dlBtn) return;
+  try {
+    dlBtn.disabled = true;
+    dlBtn.textContent = "作成中…";
+    showSavedImportsStatus("PDFを作成しています。少しお待ちください。", "");
+
+    const response = await postToApi({ action: "get_import_detail", import_id: dlBtn.dataset.pdfDownloadId, token: saveToken });
     if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
 
     const html = buildPdfHtml({ importRecord: response.import, products: response.products });
-    printHtml(html);
-    showSavedImportsStatus("印刷ダイアログを開きました。", "ok");
+    const filename = buildPdfFilename(response.import);
+    await downloadPdf(html, filename);
+    showSavedImportsStatus("ダウンロードしました。", "ok");
   } catch (error) {
-    showSavedImportsStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。", "error");
+    showSavedImportsStatus(error instanceof Error ? error.message : "ダウンロードできませんでした。", "error");
   } finally {
-    pdfBtn.disabled = false;
-    pdfBtn.textContent = "PDFを作成";
+    dlBtn.disabled = false;
+    dlBtn.textContent = "ダウンロード";
   }
 });
 
@@ -426,7 +475,8 @@ function renderSavedImports(imports) {
       <td>${escapeHtml(formatDateTimeValue(item.imported_at))}</td>
       <td>
         <div class="saved-import-operation">
-          <button class="small-button" type="button" data-pdf-import-id="${escapeHtml(item.import_id)}">PDFを作成</button>
+          <button class="small-button" type="button" data-pdf-print-id="${escapeHtml(item.import_id)}">印刷する</button>
+          <button class="small-button" type="button" data-pdf-download-id="${escapeHtml(item.import_id)}">ダウンロード</button>
           <button class="small-button delete-button" type="button" data-delete-import-id="${escapeHtml(item.import_id)}">一覧から削除</button>
           <details class="row-details"><summary>詳細</summary>
             <dl>
@@ -510,17 +560,26 @@ function showSettingsStatus(text, status) { settingsStatus.textContent = text; s
 
 function showPdfReady(messageText) {
   pdfPanel.hidden = false;
-  pdfButton.disabled = false;
+  pdfPrintButton.disabled = false;
+  pdfDownloadButton.disabled = false;
   showPdfStatus(messageText || "控えPDFを作成できます。", "");
 }
 
 function resetPdfState() {
   lastSavedImportId = "";
   pdfPanel.hidden = true;
-  pdfButton.disabled = false;
-  pdfButton.textContent = "PDFを作成";
+  pdfPrintButton.disabled = false;
+  pdfPrintButton.textContent = "印刷する";
+  pdfDownloadButton.disabled = false;
+  pdfDownloadButton.textContent = "ダウンロード";
   pdfStatus.textContent = "";
   pdfStatus.className = "save-status";
+}
+
+function buildPdfFilename(importRecord) {
+  const date = String(importRecord?.event_date ?? "").slice(0, 10).replace(/-/g, "");
+  const name = String(importRecord?.event_name ?? "").replace(/[\\/:*?"<>|]/g, "_").slice(0, 30);
+  return `売上控え_${date}_${name}.pdf`;
 }
 
 function updateSettingsState() {

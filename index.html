@@ -156,7 +156,10 @@
               <h3>次の操作</h3>
               <p>保存した売上の控えPDFを作成できます。ブラウザの印刷ダイアログから印刷またはPDF保存できます。</p>
             </div>
-            <button id="pdfButton" type="button">PDFを作成</button>
+            <div class="pdf-action-buttons">
+              <button id="pdfPrintButton" type="button">印刷する</button>
+              <button id="pdfDownloadButton" type="button">ダウンロード</button>
+            </div>
             <p id="pdfStatus" class="save-status" aria-live="polite"></p>
           </div>
         </section>
@@ -202,6 +205,7 @@
       </section>
     </main>
 
+    <script src="./vendor/html2pdf.bundle.min.js"></script>
     <script type="module" src="./src/main.mjs"></script>
   </body>
 </html>
