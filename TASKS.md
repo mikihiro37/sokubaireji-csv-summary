@@ -1,7 +1,129 @@
-# TASKS — セキュリティ修正
+# TASKS
 
-## 目的
-Cloudflare Workers + D1 に移行した Worker API のセキュリティレビューで発覚した問題を修正する。
+## 禁止事項（全タスク共通）
+- `wrangler deploy` / `wrangler d1 execute --remote` は人間が明示許可するまで実行しない
+- トークン・秘密情報をコードに書かない
+- 1回のメッセージで実装するのは指定された1タスクのみ
+
+## 完了条件（全タスク共通）
+- `npx tsc --noEmit` でエラーなし
+- `npm test` がパス
+- `wrangler deploy` は実行しない
+
+---
+
+## ✅ 完了済みタスク（TASK-01〜05）
+セキュリティ修正（import_id固定・件数上限・トークンハッシュ化・定数時間比較・crypto化）は完了済み。
+
+---
+
+## 未着手タスク
+
+### TASK-06【機能】接続キーの再発行（テナント維持）
+
+**背景・目的**
+現状、接続キーを紛失・漏洩した場合の対処として「無効化 → 新テナント作成」しかない。
+新テナントを作ると `tenant_id` が変わり、**過去の保存データが見えなくなる**という問題がある。
+同じテナント（同じ `tenant_id`）のまま接続キーだけ差し替える「再発行」機能を追加する。
+
+**変更ファイル**
+- `worker/handlers/admin.ts`
+- `admin/index.html`
+
+**実装内容**
+
+**① `worker/handlers/admin.ts` に `reissue_token` アクションを追加する**
+
+```typescript
+case "reissue_token": return reissueToken(db, payload);
+```
+
+```typescript
+async function reissueToken(db: D1Database, payload: Record<string, unknown>) {
+  const id = String(payload.tenant_id ?? "").trim();
+  if (!id) return { ok: false, code: "missing_id", message: "テナントIDを指定してください。" };
+
+  // テナントの存在確認（無効化済みでも再発行可能とする）
+  const tenant = await db
+    .prepare("SELECT id, name FROM tenants WHERE id = ?")
+    .bind(id)
+    .first<{ id: string; name: string }>();
+  if (!tenant) return { ok: false, code: "not_found", message: "テナントが見つかりません。" };
+
+  // 新しいトークンを生成・ハッシュ化
+  const token     = generateToken();
+  const tokenHash = await hashToken(token);
+
+  // token_hash を更新し、revoked_at をクリアする（無効化済みでも復活できる）
+  await db
+    .prepare("UPDATE tenants SET token_hash = ?, revoked_at = NULL WHERE id = ?")
+    .bind(tokenHash, id)
+    .run();
+
+  return { ok: true, tenant_id: id, token, name: tenant.name };
+}
+```
+
+**注意:** `hashToken` は `admin.ts` 内のプライベート関数。同じファイル内なので呼び出せる。
+
+**② `admin/index.html` のテナント一覧に「再発行」ボタンを追加する**
+
+`renderTenants` 関数内で、各テナント行の「操作」セルに「再発行」ボタンを追加する。
+
+```javascript
+// 変更前（有効なテナントの操作セル）
+`<button class="danger" data-revoke-id="${esc(t.id)}" type="button">無効化</button>`
+
+// 変更後
+`<button class="reissue-button" data-reissue-id="${esc(t.id)}" type="button">キー再発行</button>
+ <button class="danger" data-revoke-id="${esc(t.id)}" type="button">無効化</button>`
+```
+
+`savedImportsBody.addEventListener` と同じ要領で、`tenantsBody` にクリックイベントを追加する。
+
+```javascript
+tenantsBody.addEventListener("click", async (e) => {
+  // 既存の無効化ボタン処理 ...
+
+  // 再発行ボタン
+  const reissueBtn = e.target.closest("[data-reissue-id]");
+  if (reissueBtn) {
+    if (!confirm("この顧客の接続キーを再発行します。旧キーは即座に使えなくなります。よろしいですか？")) return;
+    try {
+      reissueBtn.disabled = true;
+      const res = await postAdmin({ action: "reissue_token", token: adminToken, tenant_id: reissueBtn.dataset.reissueId });
+      if (!res.ok) throw new Error(res.message);
+      // 新トークンを表示（createTenant と同じ newTokenBox を流用）
+      newTokenValue.textContent = res.token;
+      newTokenBox.hidden = false;
+      setStatus(createStatus, `「${res.name}」の接続キーを再発行しました。旧キーは無効です。`, "ok");
+      await refreshList();
+    } catch (e) {
+      setStatus(listStatus, e.message, "error");
+    } finally {
+      reissueBtn.disabled = false;
+    }
+  }
+});
+```
+
+「再発行」ボタンのスタイルを CSS に追加する（`button.danger` と区別できる色）。
+
+```css
+button.reissue-button { background: #1a6fb5; }
+button.reissue-button:hover { background: #145a94; }
+```
+
+**完了後に確認すること**
+- 再発行後に旧キーでAPIを叩くと `invalid_token` が返ること（手動確認）
+- 再発行後に新キーで「保存済み一覧」を見ると過去データが見えること（手動確認）
+- 無効化済みテナントでも再発行できること
+
+---
+
+## 作業順序
+TASK-06 のみ未着手。完了後は人間がデプロイする。
+
 
 ## 禁止事項
 - push / wrangler deploy は人間が明示許可するまで行わない
