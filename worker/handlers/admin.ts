@@ -23,6 +23,7 @@ export async function handleAdminAction(db: D1Database, action: string, payload:
     case "list_tenants":   return listTenants(db);
     case "create_tenant":  return createTenant(db, payload);
     case "revoke_tenant":  return revokeTenant(db, payload);
+    case "reissue_token":  return reissueToken(db, payload);
     default: return { ok: false, code: "unknown_action", message: "未対応のアクションです。" };
   }
 }
@@ -58,4 +59,25 @@ async function revokeTenant(db: D1Database, payload: Record<string, unknown>) {
     .bind(new Date().toISOString(), id).run();
 
   return { ok: true, tenant_id: id, revoked: true };
+}
+
+async function reissueToken(db: D1Database, payload: Record<string, unknown>) {
+  const id = String(payload.tenant_id ?? "").trim();
+  if (!id) return { ok: false, code: "missing_id", message: "テナントIDを指定してください。" };
+
+  const tenant = await db
+    .prepare("SELECT id, name FROM tenants WHERE id = ?")
+    .bind(id)
+    .first<{ id: string; name: string }>();
+  if (!tenant) return { ok: false, code: "not_found", message: "テナントが見つかりません。" };
+
+  const token = generateToken();
+  const tokenHash = await hashToken(token);
+
+  await db
+    .prepare("UPDATE tenants SET token_hash = ?, revoked_at = NULL WHERE id = ?")
+    .bind(tokenHash, id)
+    .run();
+
+  return { ok: true, tenant_id: id, token, name: tenant.name };
 }

@@ -19,6 +19,8 @@
     button:hover { background: #1b4332; }
     button.danger { background: #c0392b; }
     button.danger:hover { background: #922b21; }
+    button.reissue-button { background: #1a6fb5; }
+    button.reissue-button:hover { background: #145a94; }
     .status { font-size: 13px; margin-top: 8px; min-height: 20px; }
     .status.ok { color: #2d6a4f; }
     .status.error { color: #c0392b; }
@@ -158,18 +160,37 @@
 
     tenantsBody.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-revoke-id]");
-      if (!btn) return;
-      if (!confirm(`このテナントの接続キーを無効化します。よろしいですか？`)) return;
+      if (btn) {
+        if (!confirm(`このテナントの接続キーを無効化します。よろしいですか？`)) return;
+        try {
+          btn.disabled = true;
+          const res = await postAdmin({ action: "revoke_tenant", token: adminToken, tenant_id: btn.dataset.revokeId });
+          if (!res.ok) throw new Error(res.message);
+          setStatus(listStatus, "無効化しました。", "ok");
+          await refreshList();
+        } catch (e) {
+          setStatus(listStatus, e.message, "error");
+        } finally {
+          btn.disabled = false;
+        }
+        return;
+      }
+
+      const reissueBtn = e.target.closest("[data-reissue-id]");
+      if (!reissueBtn) return;
+      if (!confirm("この顧客の接続キーを再発行します。旧キーは即座に使えなくなります。よろしいですか？")) return;
       try {
-        btn.disabled = true;
-        const res = await postAdmin({ action: "revoke_tenant", token: adminToken, tenant_id: btn.dataset.revokeId });
+        reissueBtn.disabled = true;
+        const res = await postAdmin({ action: "reissue_token", token: adminToken, tenant_id: reissueBtn.dataset.reissueId });
         if (!res.ok) throw new Error(res.message);
-        setStatus(listStatus, "無効化しました。", "ok");
+        newTokenValue.textContent = res.token;
+        newTokenBox.hidden = false;
+        setStatus(createStatus, `「${res.name}」の接続キーを再発行しました。旧キーは無効です。`, "ok");
         await refreshList();
       } catch (e) {
         setStatus(listStatus, e.message, "error");
       } finally {
-        btn.disabled = false;
+        reissueBtn.disabled = false;
       }
     });
 
@@ -185,12 +206,16 @@
     function renderTenants(tenants) {
       tenantsBody.innerHTML = tenants.map(t => {
         const revoked = !!t.revoked_at;
+        const actions = [
+          `<button class="reissue-button" data-reissue-id="${esc(t.id)}" type="button">キー再発行</button>`,
+          revoked ? "" : `<button class="danger" data-revoke-id="${esc(t.id)}" type="button">無効化</button>`,
+        ].filter(Boolean).join(" ");
         return `<tr>
           <td class="${revoked ? "revoked" : ""}">${esc(t.name)}</td>
           <td>${esc(t.note || "-")}</td>
           <td>${esc(String(t.created_at).slice(0, 16))}</td>
           <td>${revoked ? "無効" : "有効"}</td>
-          <td>${revoked ? "-" : `<button class="danger" data-revoke-id="${esc(t.id)}" type="button">無効化</button>`}</td>
+          <td>${actions}</td>
         </tr>`;
       }).join("");
     }
