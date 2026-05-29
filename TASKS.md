@@ -122,7 +122,71 @@ button.reissue-button:hover { background: #145a94; }
 ---
 
 ## 作業順序
-TASK-07 のみ未着手。完了後は人間がデプロイする。
+TASK-08 のみ未着手。完了後は人間がデプロイする。
+
+---
+
+## TASK-08【バグ修正】iPhone での印刷・ダウンロード不具合
+
+**症状**
+- 印刷ボタン：iPhone で押しても何も起きない
+- ダウンロードボタン：iPhone で押すと白紙のPDFになる
+
+**原因**
+- `printHtml`：`iframe.contentWindow.print()` は iOS Safari で動作しない
+- `downloadPdf`：`visibility: hidden` のコンテナを html2canvas がレンダリングできない
+
+**変更ファイル**
+- `src/pdfTemplate.mjs` のみ
+
+---
+
+### ① `printHtml` を `window.open()` 方式に変更する
+
+`iframe` を使った現在の実装を削除し、新しいタブを開く方式に置き換える。
+`window.open()` はユーザーのクリックで直接呼ばれるため iOS でもポップアップブロック対象にならない。
+
+```javascript
+export function printHtml(html) {
+  const win = window.open('', '_blank');
+  if (!win) {
+    // ポップアップがブロックされた場合のフォールバック
+    alert('ポップアップがブロックされています。ブラウザの設定でこのサイトのポップアップを許可してください。');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  // iOS 以外: ロード完了後に自動で印刷ダイアログを開く
+  // iOS Safari: window.print() は動作しないが、新しいタブで開くので
+  //             ユーザーが共有ボタン → 印刷 から印刷できる
+  win.addEventListener('load', () => {
+    win.focus();
+    try { win.print(); } catch (_) { /* iOS は無視する */ }
+  });
+}
+```
+
+---
+
+### ② `downloadPdf` のコンテナのスタイルを変更する
+
+`visibility: hidden` だと html2canvas がレンダリングできない。
+画面外に配置する方式に変更する。
+
+```javascript
+// 変更前
+container.style.cssText = 'position:fixed;top:0;left:0;width:210mm;visibility:hidden;pointer-events:none;z-index:-1;';
+
+// 変更後
+container.style.cssText = 'position:absolute;top:-9999px;left:-9999px;width:210mm;pointer-events:none;';
+```
+
+---
+
+### 完了後に確認すること（人間が行う）
+- iPhone Safari で「印刷する」を押すと新しいタブが開くこと
+- iPhone Safari で「ダウンロード」を押すとPDFの中身が表示されること（白紙でないこと）
+- Mac/PC でも印刷・ダウンロードが引き続き動くこと
 
 ---
 
