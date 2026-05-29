@@ -74,18 +74,17 @@ th{background:#f2f6f4;font-weight:700;}.number{text-align:right;white-space:nowr
 
 /** ブラウザの印刷ダイアログを開く */
 export function printHtml(html) {
-  const iframe = document.createElement("iframe");
-  iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;";
-  document.body.appendChild(iframe);
-  iframe.srcdoc = html;
-  iframe.onload = () => {
-    try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    } finally {
-      setTimeout(() => document.body.removeChild(iframe), 3000);
-    }
-  };
+  const win = window.open("", "_blank");
+  if (!win) {
+    alert("ポップアップがブロックされています。ブラウザの設定でこのサイトのポップアップを許可してください。");
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.addEventListener("load", () => {
+    win.focus();
+    try { win.print(); } catch (_) { /* iOS は無視する */ }
+  });
 }
 
 /**
@@ -94,7 +93,7 @@ export function printHtml(html) {
  */
 export async function downloadPdf(html, filename) {
   const container = document.createElement("div");
-  container.style.cssText = "position:fixed;top:0;left:0;width:210mm;visibility:hidden;pointer-events:none;z-index:-1;";
+  container.style.cssText = "position:absolute;top:-9999px;left:-9999px;width:210mm;pointer-events:none;";
   container.innerHTML = html;
   document.body.appendChild(container);
   try {
