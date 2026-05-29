@@ -122,7 +122,238 @@ button.reissue-button:hover { background: #145a94; }
 ---
 
 ## 作業順序
-TASK-06 のみ未着手。完了後は人間がデプロイする。
+TASK-07 のみ未着手。完了後は人間がデプロイする。
+
+---
+
+## TASK-07【機能】PDFダウンロードボタンの追加
+
+**背景・目的**
+現状は「印刷ダイアログを開く」のみ。iPad で Files にワンクリック保存できるよう、
+`html2pdf.js` を使ったダウンロードボタンを追加する。
+
+**前提**
+`vendor/html2pdf.bundle.min.js` は人間側で事前に配置済み。
+Codex はこのファイルを自分でダウンロード・作成しなくてよい。
+すでに `vendor/` に存在する前提でコードを書くこと。
+
+**変更ファイル**
+- `index.html`
+- `src/pdfTemplate.mjs`
+- `src/main.mjs`
+
+---
+
+### ① `index.html` の変更
+
+**a) html2pdf.js の読み込みを追加する**
+
+`<script type="module" src="./src/main.mjs">` の直前に追加する。
+
+```html
+<script src="./vendor/html2pdf.bundle.min.js"></script>
+```
+
+**b) 保存後PDFパネル（`#pdfPanel`）のボタンを2つに増やす**
+
+```html
+<!-- 変更前 -->
+<button id="pdfButton" type="button">PDFを作成</button>
+<p id="pdfStatus" class="save-status" aria-live="polite"></p>
+
+<!-- 変更後 -->
+<div class="pdf-action-buttons">
+  <button id="pdfPrintButton" type="button">印刷する</button>
+  <button id="pdfDownloadButton" type="button">ダウンロード</button>
+</div>
+<p id="pdfStatus" class="save-status" aria-live="polite"></p>
+```
+
+**c) 保存済み一覧の操作ボタン（`[data-pdf-import-id]`）の隣にダウンロードボタンを追加する**
+
+`renderSavedImports` 関数内のボタン部分を変更する（`main.mjs` 側で対応）。
+
+---
+
+### ② `src/pdfTemplate.mjs` の変更
+
+`downloadPdf` 関数を追加する。
+
+```javascript
+/**
+ * html2pdf.js を使ってPDFをダウンロードする
+ * vendor/html2pdf.bundle.min.js が読み込まれている前提（グローバル変数 html2pdf）
+ */
+export async function downloadPdf(html, filename) {
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;top:0;left:0;width:210mm;visibility:hidden;pointer-events:none;z-index:-1;';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  try {
+    await html2pdf().set({
+      filename,
+      margin: 10,
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(container).save();
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+```
+
+---
+
+### ③ `src/main.mjs` の変更
+
+**a) import に `downloadPdf` を追加する**
+
+```javascript
+import { buildPdfHtml, printHtml, downloadPdf } from "./pdfTemplate.mjs";
+```
+
+**b) 変数宣言を更新する**
+
+```javascript
+// 変更前
+const pdfButton = document.querySelector("#pdfButton");
+
+// 変更後
+const pdfPrintButton    = document.querySelector("#pdfPrintButton");
+const pdfDownloadButton = document.querySelector("#pdfDownloadButton");
+```
+
+**c) `pdfButton` のイベントを `pdfPrintButton` と `pdfDownloadButton` の2つに分ける**
+
+現在の `pdfButton.addEventListener` を以下2つに置き換える。
+
+```javascript
+// 印刷ボタン（既存の処理をそのまま移す）
+pdfPrintButton.addEventListener("click", async () => {
+  // 既存の pdfButton のロジックと同じ（printHtml を呼ぶ）
+  // ボタン参照を pdfPrintButton に変えるだけ
+  const saveToken = saveTokenInput.value.trim();
+  if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
+  if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+  try {
+    pdfPrintButton.disabled = true;
+    pdfPrintButton.textContent = "データ取得中…";
+    showPdfStatus("データを取得しています。", "");
+    const response = await postToApi({ action: "get_import_detail", import_id: lastSavedImportId, token: saveToken });
+    if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
+    const html = buildPdfHtml({ importRecord: response.import, products: response.products });
+    printHtml(html);
+    showPdfStatus("印刷ダイアログを開きました。", "ok");
+  } catch (error) {
+    showPdfStatus(error instanceof Error ? error.message : "印刷できませんでした。", "error");
+  } finally {
+    pdfPrintButton.disabled = false;
+    pdfPrintButton.textContent = "印刷する";
+  }
+});
+
+// ダウンロードボタン（新規追加）
+pdfDownloadButton.addEventListener("click", async () => {
+  const saveToken = saveTokenInput.value.trim();
+  if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
+  if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+  try {
+    pdfDownloadButton.disabled = true;
+    pdfDownloadButton.textContent = "作成中…";
+    showPdfStatus("PDFを作成しています。少しお待ちください。", "");
+    const response = await postToApi({ action: "get_import_detail", import_id: lastSavedImportId, token: saveToken });
+    if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
+    const html = buildPdfHtml({ importRecord: response.import, products: response.products });
+    const filename = buildPdfFilename(response.import);
+    await downloadPdf(html, filename);
+    showPdfStatus("ダウンロードしました。", "ok");
+  } catch (error) {
+    showPdfStatus(error instanceof Error ? error.message : "ダウンロードできませんでした。", "error");
+  } finally {
+    pdfDownloadButton.disabled = false;
+    pdfDownloadButton.textContent = "ダウンロード";
+  }
+});
+```
+
+**d) `buildPdfFilename` ヘルパー関数を追加する**
+
+```javascript
+function buildPdfFilename(importRecord) {
+  const date = String(importRecord?.event_date ?? "").slice(0, 10).replace(/-/g, "");
+  const name = String(importRecord?.event_name ?? "").replace(/[\\/:*?"<>|]/g, "_").slice(0, 30);
+  return `売上控え_${date}_${name}.pdf`;
+}
+```
+
+**e) 保存済み一覧の PDF ボタンにもダウンロードボタンを追加する**
+
+`renderSavedImports` 関数内のボタン部分に `data-pdf-download-id` ボタンを追加する。
+
+```javascript
+// 変更前
+`<button class="small-button" type="button" data-pdf-import-id="${escapeHtml(item.import_id)}">PDFを作成</button>`
+
+// 変更後
+`<button class="small-button" type="button" data-pdf-print-id="${escapeHtml(item.import_id)}">印刷する</button>
+ <button class="small-button" type="button" data-pdf-download-id="${escapeHtml(item.import_id)}">ダウンロード</button>`
+```
+
+`savedImportsBody.addEventListener` 内でダウンロードボタンのクリックも処理する。
+
+```javascript
+// 既存の data-pdf-import-id → data-pdf-print-id に変更
+
+// ダウンロードボタン（新規追加）
+const dlBtn = event.target.closest("[data-pdf-download-id]");
+if (dlBtn) {
+  try {
+    dlBtn.disabled = true;
+    dlBtn.textContent = "作成中…";
+    showSavedImportsStatus("PDFを作成しています。少しお待ちください。", "");
+    const response = await postToApi({ action: "get_import_detail", import_id: dlBtn.dataset.pdfDownloadId, token: saveToken });
+    if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
+    const html = buildPdfHtml({ importRecord: response.import, products: response.products });
+    const filename = buildPdfFilename(response.import);
+    await downloadPdf(html, filename);
+    showSavedImportsStatus("ダウンロードしました。", "ok");
+  } catch (error) {
+    showSavedImportsStatus(error instanceof Error ? error.message : "ダウンロードできませんでした。", "error");
+  } finally {
+    dlBtn.disabled = false;
+    dlBtn.textContent = "ダウンロード";
+  }
+  return;
+}
+```
+
+**f) `resetPdfState` 関数のボタン参照を更新する**
+
+```javascript
+// 変更前
+function resetPdfState() {
+  ...
+  pdfButton.disabled = false;
+  pdfButton.textContent = "PDFを作成";
+  ...
+}
+
+// 変更後
+function resetPdfState() {
+  ...
+  if (pdfPrintButton)    { pdfPrintButton.disabled = false;    pdfPrintButton.textContent = "印刷する"; }
+  if (pdfDownloadButton) { pdfDownloadButton.disabled = false; pdfDownloadButton.textContent = "ダウンロード"; }
+  ...
+}
+```
+
+---
+
+### 完了後に確認すること（Codex はしなくてよい、人間が行う）
+
+- ビルド・デプロイ後に「ダウンロード」ボタンを押してPDFファイルが保存されること
+- ファイル名が `売上控え_YYYYMMDD_イベント名.pdf` 形式になっていること
+- 印刷ボタンは引き続き動くこと
 
 
 ## 禁止事項
