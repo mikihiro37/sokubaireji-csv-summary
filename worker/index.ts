@@ -35,7 +35,7 @@ async function handleAdminRequest(request: Request, env: Env): Promise<Response>
   }
 
   const token = extractToken(request, body);
-  if (!verifyAdminToken(env, token)) {
+  if (!(await verifyAdminToken(env, token))) {
     return jsonError("unauthorized", "管理者トークンが一致しません。", 401);
   }
 

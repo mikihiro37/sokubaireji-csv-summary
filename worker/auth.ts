@@ -31,9 +31,28 @@ export async function resolveTenant(db: D1Database, token: string): Promise<Tena
 }
 
 /** 管理者トークン検証 */
-export function verifyAdminToken(env: Env, token: string): boolean {
-  if (!env.ADMIN_TOKEN) return false;
-  return token === env.ADMIN_TOKEN;
+export async function verifyAdminToken(env: Env, token: string): Promise<boolean> {
+  if (!env.ADMIN_TOKEN || !token) return false;
+  const enc = new TextEncoder();
+  const a = enc.encode(token);
+  const b = enc.encode(env.ADMIN_TOKEN);
+  if (a.length !== b.length) return false;
+  const ka = await crypto.subtle.importKey("raw", a, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const kb = await crypto.subtle.importKey("raw", b, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const msg = enc.encode("compare");
+  const [sa, sb] = await Promise.all([
+    crypto.subtle.sign("HMAC", ka, msg),
+    crypto.subtle.sign("HMAC", kb, msg),
+  ]);
+  return timingSafeEqual(sa, sb);
+}
+
+function timingSafeEqual(a: ArrayBuffer, b: ArrayBuffer): boolean {
+  const va = new Uint8Array(a), vb = new Uint8Array(b);
+  if (va.length !== vb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
+  return diff === 0;
 }
 
 /** リクエストからトークンを抽出（Bearerヘッダー or ボディの token フィールド） */

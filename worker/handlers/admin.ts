@@ -12,7 +12,10 @@ async function hashToken(token: string): Promise<string> {
 }
 
 function generateId(): string {
-  return "t_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+  return "t_" + Date.now().toString(36) + "_" + hex;
 }
 
 export async function handleAdminAction(db: D1Database, action: string, payload: Record<string, unknown>) {
