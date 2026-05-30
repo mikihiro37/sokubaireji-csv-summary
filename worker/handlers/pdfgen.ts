@@ -86,9 +86,13 @@ function buildReportHtml(imp: Record<string, unknown>, products: Record<string, 
 body { font-family: sans-serif; color: #1f2823; margin: 0; font-size: 12px; line-height: 1.6; }
 h1 { font-size: 20px; margin: 0 0 12px; }
 h2 { font-size: 13px; margin: 16px 0 6px; border-bottom: 1px solid #d8e1dc; padding-bottom: 3px; }
+.doc-title { font-size: 22px; font-weight: 700; margin: 0 0 2px; }
+.doc-subtitle { font-size: 11px; color: #607069; margin: 0 0 20px; }
 .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 8px; }
 .item { display: flex; gap: 8px; }
 .label { color: #607069; min-width: 80px; font-weight: 700; }
+.event-name-value { font-size: 17px; font-weight: 700; color: #1f2823; }
+.seller-name-value { font-size: 14px; font-weight: 600; }
 .summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 8px 0; }
 .box { border: 1px solid #d8e1dc; border-radius: 4px; padding: 6px 8px; background: #f2f6f4; }
 .box .val { font-size: 15px; font-weight: 700; }
@@ -99,12 +103,13 @@ th { background: #f2f6f4; font-weight: 700; }
 .note { margin-top: 16px; padding: 8px 10px; background: #f7faf8; border: 1px solid #d8e1dc; border-radius: 4px; font-size: 11px; color: #607069; }
 </style>
 </head><body>
-<h1>イベント売上控え</h1>
+<p class="doc-title">売上明細書</p>
+<p class="doc-subtitle">即売レジ CSV集計補助ツール ／ 作成日時：${new Date().toLocaleDateString("ja-JP")}</p>
 <h2>イベント情報</h2>
 <div class="meta">
-  <div class="item"><span class="label">イベント名</span><span>${esc(imp.event_name)}</span></div>
+  <div class="item"><span class="label">イベント名</span><span class="event-name-value">${esc(imp.event_name)}</span></div>
   <div class="item"><span class="label">イベント日</span><span>${esc(imp.event_date)}</span></div>
-  <div class="item"><span class="label">出店者名</span><span>${esc(imp.seller_name)}</span></div>
+  <div class="item"><span class="label">出店者名</span><span class="seller-name-value">${esc(imp.seller_name)}</span></div>
 </div>
 <h2>売上サマリー</h2>
 <div class="summary">
@@ -117,6 +122,8 @@ th { background: #f2f6f4; font-weight: 700; }
   <thead><tr><th>商品名</th><th>販売点数</th><th>売上金額</th><th>参考単価</th><th>残数</th></tr></thead>
   <tbody>${productRows}</tbody>
 </table>
-<div class="note">この資料は即売レジCSVをもとにした売上集計補助です。帳簿付け前の確認資料・売上控えとしてご利用ください。</div>
+<div class="note">
+  この書類は即売レジCSVをもとに作成した売上記録です。確定申告等の参考資料としてご利用いただけますが、正式な帳簿・税務書類ではありません。
+</div>
 </body></html>`;
 }
