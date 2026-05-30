@@ -13,3 +13,6 @@ binding = "DB"
 database_name = "sokubaireji-db"
 database_id = "a314516b-d23c-44cd-b749-38d62f257cbe"
 
+[browser]
+binding = "BROWSER"
+

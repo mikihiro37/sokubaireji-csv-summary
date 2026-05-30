@@ -4,15 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev":   "wrangler dev --local",
+    "dev": "wrangler dev --local",
     "deploy": "npm run build && wrangler deploy",
     "build": "cp -r src styles.css vendor index.html admin dist/",
-    "test":  "node tests/parser.test.mjs && node tests/fileLoader.test.mjs"
+    "test": "node tests/parser.test.mjs && node tests/fileLoader.test.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1"
   },
   "devDependencies": {
+    "@cloudflare/puppeteer": "^1.1.0",
     "@cloudflare/workers-types": "^4.20250109.0",
     "typescript": "^6.0.3",
     "wrangler": "^3.109.2"
