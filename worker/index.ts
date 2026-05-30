@@ -57,12 +57,13 @@ async function handlePdfRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const importId = url.searchParams.get("import_id") ?? "";
   const token = url.searchParams.get("token") ?? "";
+  const mode = url.searchParams.get("mode") === "print" ? "print" : "download";
 
   const tenant = await resolveTenant(env.DB, token);
   if (!tenant) return jsonError("invalid_token", "トークンが無効です。", 401);
 
   const { handleServerPdf } = await import("./handlers/pdfgen.js");
-  return handleServerPdf(env, tenant.id, importId);
+  return handleServerPdf(env, tenant.id, importId, mode);
 }
 
 async function handleApiRequest(request: Request, env: Env): Promise<Response> {

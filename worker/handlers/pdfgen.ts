@@ -1,6 +1,11 @@
 import type { Env } from "../types.js";
 
-export async function handleServerPdf(env: Env, tenantId: string, importId: string): Promise<Response> {
+export async function handleServerPdf(
+  env: Env,
+  tenantId: string,
+  importId: string,
+  mode: "print" | "download" = "download"
+): Promise<Response> {
   if (!importId) {
     return new Response(JSON.stringify({ ok: false, code: "missing_import_id", message: "import_idが必要です。" }), {
       status: 400, headers: { "Content-Type": "application/json" }
@@ -37,11 +42,14 @@ export async function handleServerPdf(env: Env, tenantId: string, importId: stri
     const eventName = String(imp.event_name ?? "").replace(/[\\/:*?"<>|]/g, "_").slice(0, 30);
     const filename = `売上控え_${eventDate}_${eventName}.pdf`;
     const encoded = encodeURIComponent(filename);
+    const disposition = mode === "print"
+      ? `inline; filename*=UTF-8''${encoded}`
+      : `attachment; filename*=UTF-8''${encoded}`;
 
     return new Response(pdf, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encoded}`,
+        "Content-Disposition": disposition,
       },
     });
   } finally {

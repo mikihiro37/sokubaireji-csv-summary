@@ -1,7 +1,7 @@
 import { parseCsvText } from "./csvParser.mjs";
 import { readInputFile } from "./fileLoader.mjs";
 import { buildSheetsPayload, createCsvHash, generateImportId } from "./sheetsPayload.mjs";
-import { buildPdfHtml, printHtml } from "./pdfTemplate.mjs";
+import { buildPdfHtml } from "./pdfTemplate.mjs";
 
 const fileInput            = document.querySelector("#csvFile");
 const message              = document.querySelector("#message");
@@ -165,29 +165,13 @@ saveForm.addEventListener("submit", async (event) => {
   }
 });
 
-// ===== PDF作成（クライアントサイド） =====
-pdfPrintButton.addEventListener("click", async () => {
+// ===== PDF作成 =====
+pdfPrintButton.addEventListener("click", () => {
   const saveToken = saveTokenInput.value.trim();
   if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
   if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
-
-  try {
-    pdfPrintButton.disabled = true;
-    pdfPrintButton.textContent = "データ取得中…";
-    showPdfStatus("データを取得しています。", "");
-
-    const response = await postToApi({ action: "get_import_detail", import_id: lastSavedImportId, token: saveToken });
-    if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
-
-    const html = buildPdfHtml({ importRecord: response.import, products: response.products });
-    printHtml(html);
-    showPdfStatus("印刷ダイアログを開きました。", "ok");
-  } catch (error) {
-    showPdfStatus(error instanceof Error ? error.message : "印刷できませんでした。", "error");
-  } finally {
-    pdfPrintButton.disabled = false;
-    pdfPrintButton.textContent = "印刷する";
-  }
+  const url = `/api/pdf?import_id=${encodeURIComponent(lastSavedImportId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
+  window.open(url, "_blank");
 });
 
 pdfDownloadButton.addEventListener("click", () => {
@@ -241,26 +225,11 @@ savedImportsBody.addEventListener("click", async (event) => {
     return;
   }
 
-  // PDF印刷ボタン（クライアントサイド）
+  // PDF印刷ボタン
   const pdfBtn = event.target.closest("[data-pdf-print-id]");
   if (pdfBtn) {
-    try {
-      pdfBtn.disabled = true;
-      pdfBtn.textContent = "取得中…";
-      showSavedImportsStatus("データを取得しています。", "");
-
-      const response = await postToApi({ action: "get_import_detail", import_id: pdfBtn.dataset.pdfPrintId, token: saveToken });
-      if (!response.ok) throw new Error(response.message ?? "データの取得に失敗しました。");
-
-      const html = buildPdfHtml({ importRecord: response.import, products: response.products });
-      printHtml(html);
-      showSavedImportsStatus("印刷ダイアログを開きました。", "ok");
-    } catch (error) {
-      showSavedImportsStatus(error instanceof Error ? error.message : "PDFを作成できませんでした。", "error");
-    } finally {
-      pdfBtn.disabled = false;
-      pdfBtn.textContent = "印刷する";
-    }
+    const url = `/api/pdf?import_id=${encodeURIComponent(pdfBtn.dataset.pdfPrintId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
+    window.open(url, "_blank");
     return;
   }
 

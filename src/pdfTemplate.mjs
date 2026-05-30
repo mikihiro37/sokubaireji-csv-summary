@@ -68,20 +68,8 @@ th{background:#f2f6f4;font-weight:700;}.number{text-align:right;white-space:nowr
     ${item("PDF作成日時", createdAt.toLocaleString("ja-JP"))}
   </div>
 </div>
-<script>window.onload = function() { window.print(); };<\/script>
 </body>
 </html>`;
-}
-
-/** ブラウザの印刷ダイアログを開く */
-export function printHtml(html) {
-  const win = window.open("", "_blank");
-  if (!win) {
-    alert("ポップアップがブロックされています。ブラウザの設定でこのサイトのポップアップを許可してください。");
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
 }
 
 function esc(v) { return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
