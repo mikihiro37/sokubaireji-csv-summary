@@ -21,6 +21,10 @@
     button.danger:hover { background: #922b21; }
     button.reissue-button { background: #1a6fb5; }
     button.reissue-button:hover { background: #145a94; }
+    .tab-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+    .tab-button { padding: 6px 14px; border: 1px solid #d8e1dc; border-radius: 6px; background: #fff; color: #1f2823; cursor: pointer; font-size: 13px; }
+    .tab-button:hover { background: #f2f6f4; }
+    .tab-button.active { background: #2d6a4f; color: #fff; border-color: #2d6a4f; }
     .status { font-size: 13px; margin-top: 8px; min-height: 20px; }
     .status.ok { color: #2d6a4f; }
     .status.error { color: #c0392b; }
@@ -72,6 +76,10 @@
     <section>
       <h2>テナント一覧</h2>
       <button id="refreshButton" type="button">一覧を更新</button>
+      <div class="tab-bar">
+        <button class="tab-button active" id="tabActive" type="button">有効のみ</button>
+        <button class="tab-button" id="tabAll" type="button">全件</button>
+      </div>
       <p id="listStatus" class="status"></p>
       <div id="tenantsWrap" hidden>
         <table>
@@ -87,6 +95,8 @@
   <script type="module">
     const ADMIN_API = "/admin/api";
     let adminToken = "";
+    let currentTab = "active";
+    let lastTenants = [];
 
     const loginSection = document.querySelector("#loginSection");
     const mainSection  = document.querySelector("#mainSection");
@@ -104,6 +114,22 @@
     const listStatus   = document.querySelector("#listStatus");
     const tenantsWrap  = document.querySelector("#tenantsWrap");
     const tenantsBody  = document.querySelector("#tenantsBody");
+    const tabActive    = document.querySelector("#tabActive");
+    const tabAll       = document.querySelector("#tabAll");
+
+    tabActive.addEventListener("click", () => {
+      currentTab = "active";
+      tabActive.classList.add("active");
+      tabAll.classList.remove("active");
+      renderTenants(lastTenants);
+    });
+
+    tabAll.addEventListener("click", () => {
+      currentTab = "all";
+      tabAll.classList.add("active");
+      tabActive.classList.remove("active");
+      renderTenants(lastTenants);
+    });
 
     loginButton.addEventListener("click", async () => {
       const token = adminTokenInput.value.trim();
@@ -115,7 +141,6 @@
         loginSection.style.display = "none";
         mainSection.style.display  = "block";
         renderTenants(res.tenants ?? []);
-        tenantsWrap.hidden = false;
       } catch (e) {
         setStatus(loginStatus, e.message, "error");
       }
@@ -199,12 +224,16 @@
       const res = await postAdmin({ action: "list_tenants", token: adminToken });
       if (!res.ok) throw new Error(res.message ?? "一覧を取得できませんでした。");
       renderTenants(res.tenants ?? []);
-      tenantsWrap.hidden = false;
       setStatus(listStatus, `${res.tenants.length}件`, "ok");
     }
 
     function renderTenants(tenants) {
-      tenantsBody.innerHTML = tenants.map(t => {
+      lastTenants = tenants;
+      const filtered = currentTab === "active"
+        ? tenants.filter(t => !t.revoked_at)
+        : tenants;
+
+      tenantsBody.innerHTML = filtered.map(t => {
         const revoked = !!t.revoked_at;
         const actions = [
           `<button class="reissue-button" data-reissue-id="${esc(t.id)}" type="button">キー再発行</button>`,
@@ -218,6 +247,7 @@
           <td>${actions}</td>
         </tr>`;
       }).join("");
+      tenantsWrap.hidden = filtered.length === 0;
     }
 
     async function postAdmin(payload) {
