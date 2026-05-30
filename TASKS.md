@@ -122,7 +122,119 @@ button.reissue-button:hover { background: #145a94; }
 ---
 
 ## 作業順序
-TASK-11 のみ未着手。完了後は人間がレビュー・デプロイする。
+TASK-12 のみ未着手。完了後は人間がレビュー・デプロイする。
+
+---
+
+## TASK-12【改善】PDF書類タイトル変更・イベント名を大きく・説明文を見やすく
+
+**目的**
+1. PDFのタイトルを「売上明細書」に変更し書類らしい体裁にする
+2. イベント名・出店者名を大きく目立たせる
+3. PDFの開き方説明文を常に見える場所にも表示する
+
+**変更ファイル**
+- `worker/handlers/pdfgen.ts`（PDF内容の変更）
+- `index.html`（説明文の追加）
+
+---
+
+### ① `worker/handlers/pdfgen.ts` の変更
+
+`buildReportHtml` 関数の CSS とHTML を変更する。
+
+**CSS の変更（`<style>` ブロック内）**
+
+以下を追加・変更する。
+
+```css
+/* 追加 */
+.doc-title { font-size: 22px; font-weight: 700; margin: 0 0 2px; }
+.doc-subtitle { font-size: 11px; color: #607069; margin: 0 0 20px; }
+.event-name-value { font-size: 17px; font-weight: 700; color: #1f2823; }
+.seller-name-value { font-size: 14px; font-weight: 600; }
+```
+
+**HTML の変更**
+
+```html
+<!-- 変更前 -->
+<h1>イベント売上控え</h1>
+<h2>イベント情報</h2>
+<div class="meta">
+  <div class="item"><span class="label">イベント名</span><span>${esc(imp.event_name)}</span></div>
+  <div class="item"><span class="label">イベント日</span><span>${esc(imp.event_date)}</span></div>
+  <div class="item"><span class="label">出店者名</span><span>${esc(imp.seller_name)}</span></div>
+</div>
+
+<!-- 変更後 -->
+<p class="doc-title">売上明細書</p>
+<p class="doc-subtitle">即売レジ CSV集計補助ツール ／ 作成日時：${new Date().toLocaleDateString("ja-JP")}</p>
+<h2>イベント情報</h2>
+<div class="meta">
+  <div class="item"><span class="label">イベント名</span><span class="event-name-value">${esc(imp.event_name)}</span></div>
+  <div class="item"><span class="label">イベント日</span><span>${esc(imp.event_date)}</span></div>
+  <div class="item"><span class="label">出店者名</span><span class="seller-name-value">${esc(imp.seller_name)}</span></div>
+</div>
+```
+
+**注記文の変更**
+
+```html
+<!-- 変更前 -->
+<div class="note">この資料は即売レジCSVをもとにした売上集計補助です。帳簿付け前の確認資料・売上控えとしてご利用ください。</div>
+
+<!-- 変更後 -->
+<div class="note">
+  この書類は即売レジCSVをもとに作成した売上記録です。確定申告等の参考資料としてご利用いただけますが、正式な帳簿・税務書類ではありません。
+</div>
+```
+
+`buildReportHtml` 関数の引数に渡すのではなく、テンプレートリテラル内の `new Date()` で作成日時を埋め込むこと。
+
+---
+
+### ② `index.html` の変更
+
+**a) 保存済み一覧セクションの `<p class="section-note">` を追加する**
+
+```html
+<!-- 変更前 -->
+<div class="saved-imports-actions">
+  <button id="loadImportsButton" type="button">保存済みの売上一覧を見る</button>
+  <button id="aggregateButton" type="button">累積集計を見る</button>
+  <p id="savedImportsStatus" class="save-status" aria-live="polite"></p>
+</div>
+
+<!-- 変更後 -->
+<div class="saved-imports-actions">
+  <button id="loadImportsButton" type="button">保存済みの売上一覧を見る</button>
+  <button id="aggregateButton" type="button">累積集計を見る</button>
+  <p id="savedImportsStatus" class="save-status" aria-live="polite"></p>
+</div>
+<p class="section-note">「PDFを開く」を押すと新しいタブにPDFが表示されます。印刷はCmdP（Mac）/ Ctrl+P（Windows）、保存はブラウザのダウンロードボタンで。iPhone / iPad は共有ボタン（□↑）→「プリント」または「ファイルに保存」。</p>
+```
+
+**b) `#pdfPanel` 内の説明文を簡略化する（重複するため短くする）**
+
+```html
+<!-- 変更前（長い説明文） -->
+<p class="pdf-help-text">
+  新しいタブにPDFが開きます。<br>
+  <strong>印刷：</strong>...<br>
+  ...
+</p>
+
+<!-- 変更後（短くする） -->
+<p class="pdf-help-text">新しいタブにPDFが開きます。上記の案内を参照してください。</p>
+```
+
+---
+
+### 完了条件
+- `npx tsc --noEmit` でエラーなし
+- `npm test` がパス
+- `wrangler deploy` は実行しない
 
 ---
 
