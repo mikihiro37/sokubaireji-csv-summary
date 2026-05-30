@@ -122,8 +122,158 @@ button.reissue-button:hover { background: #145a94; }
 ---
 
 ## 作業順序
-TASK-09A → TASK-09C → TASK-09B の順で実装する。
-各タスク完了後は人間がレビュー・デプロイする。
+TASK-10 のみ未着手。完了後は人間がレビュー・デプロイする。
+
+---
+
+## TASK-10【バグ修正】「印刷する」のポップアップブロック対策
+
+**症状**
+「印刷する」ボタンが `window.open("", "_blank")` を使っているためポップアップブロッカーに引っかかる。
+
+**解決方針**
+「印刷する」も「ダウンロード」と同じく `/api/pdf` エンドポイントを使い、
+`?mode=print` のときは `Content-Disposition: inline` でブラウザ内表示にする。
+実際のURLへの `window.open()` はポップアップブロッカーに引っかからない。
+
+**変更ファイル**
+- `worker/handlers/pdfgen.ts`
+- `worker/index.ts`
+- `src/main.mjs`
+- `src/pdfTemplate.mjs`
+- `index.html`
+
+---
+
+### ① `worker/handlers/pdfgen.ts` の変更
+
+`handleServerPdf` に `mode` 引数を追加し、`Content-Disposition` を切り替える。
+
+```typescript
+// 引数に mode を追加
+export async function handleServerPdf(
+  env: Env,
+  tenantId: string,
+  importId: string,
+  mode: "print" | "download" = "download"
+): Promise<Response> {
+  // ...（既存のD1取得・PDF生成処理は変更なし）...
+
+  // Content-Disposition を mode で切り替える
+  const disposition = mode === "print"
+    ? `inline; filename*=UTF-8''${encoded}`
+    : `attachment; filename*=UTF-8''${encoded}`;
+
+  return new Response(pdf, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": disposition,
+    },
+  });
+}
+```
+
+---
+
+### ② `worker/index.ts` の変更
+
+`handlePdfRequest` で `mode` クエリパラメータを取得して `handleServerPdf` に渡す。
+
+```typescript
+async function handlePdfRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const importId = url.searchParams.get("import_id") ?? "";
+  const token    = url.searchParams.get("token") ?? "";
+  const mode     = url.searchParams.get("mode") === "print" ? "print" : "download";  // ← 追加
+
+  const tenant = await resolveTenant(env.DB, token);
+  if (!tenant) return jsonError("invalid_token", "トークンが無効です。", 401);
+
+  const { handleServerPdf } = await import("./handlers/pdfgen.js");
+  return handleServerPdf(env, tenant.id, importId, mode);  // ← mode を渡す
+}
+```
+
+---
+
+### ③ `src/main.mjs` の変更
+
+**a) 「印刷する」ボタンのイベントハンドラを変更する**
+
+`pdfPrintButton` のハンドラを、`printHtml` を呼ぶ方式から `/api/pdf?mode=print` を開く方式に変更する。
+
+```javascript
+// 変更前（printHtml を呼ぶ方式）
+pdfPrintButton.addEventListener("click", async () => {
+  // ...データ取得してprintHtml(html)を呼ぶ処理...
+});
+
+// 変更後（サーバー側PDFを開く方式）
+pdfPrintButton.addEventListener("click", () => {
+  const saveToken = saveTokenInput.value.trim();
+  if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
+  if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+  const url = `/api/pdf?import_id=${encodeURIComponent(lastSavedImportId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
+  window.open(url, "_blank");
+});
+```
+
+**b) 保存済み一覧の `[data-pdf-print-id]` ボタンのハンドラも同様に変更する**
+
+```javascript
+// 変更前（printHtml を呼ぶ方式）
+const pdfBtn = event.target.closest("[data-pdf-print-id]");
+if (pdfBtn) {
+  // ...データ取得してprintHtml(html)を呼ぶ処理...
+}
+
+// 変更後
+const pdfBtn = event.target.closest("[data-pdf-print-id]");
+if (pdfBtn) {
+  const saveToken = saveTokenInput.value.trim();
+  if (!saveToken) { showSavedImportsStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+  const url = `/api/pdf?import_id=${encodeURIComponent(pdfBtn.dataset.pdfPrintId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
+  window.open(url, "_blank");
+  return;
+}
+```
+
+**c) `printHtml` の import を削除する**
+
+```javascript
+// 変更前
+import { buildPdfHtml, printHtml } from "./pdfTemplate.mjs";
+
+// 変更後（printHtml を削除）
+import { buildPdfHtml } from "./pdfTemplate.mjs";
+```
+
+`buildPdfHtml` はまだ import しておく（削除判断は後で行う）。
+
+---
+
+### ④ `src/pdfTemplate.mjs` の変更
+
+`printHtml` 関数を削除する（`export function printHtml` から最後の `}` まで）。
+`buildPdfHtml` の `</body>` 直前の `<script>window.onload...` も不要になったので削除する。
+
+---
+
+### ⑤ `index.html` の変更
+
+html2pdf.js の script タグを削除する（サーバー側PDFに移行したため不要）。
+
+```html
+<!-- 削除する行 -->
+<script src="./vendor/html2pdf.bundle.min.js"></script>
+```
+
+---
+
+### 完了条件
+- `npx tsc --noEmit` でエラーなし
+- `npm test` がパス
+- `wrangler deploy` は実行しない
 
 ---
 
