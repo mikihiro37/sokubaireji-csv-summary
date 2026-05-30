@@ -14,6 +14,11 @@ export default {
       return handleAdminRequest(request, env);
     }
 
+    // ===== PDF生成API =====
+    if (url.pathname === "/api/pdf" && request.method === "GET") {
+      return handlePdfRequest(request, env);
+    }
+
     // ===== ユーザーAPI =====
     if (url.pathname === "/api") {
       return handleApiRequest(request, env);
@@ -46,6 +51,18 @@ async function handleAdminRequest(request: Request, env: Env): Promise<Response>
     console.error("Admin error:", e);
     return jsonError("internal_error", "サーバーエラーが発生しました。", 500);
   }
+}
+
+async function handlePdfRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const importId = url.searchParams.get("import_id") ?? "";
+  const token = url.searchParams.get("token") ?? "";
+
+  const tenant = await resolveTenant(env.DB, token);
+  if (!tenant) return jsonError("invalid_token", "トークンが無効です。", 401);
+
+  const { handleServerPdf } = await import("./handlers/pdfgen.js");
+  return handleServerPdf(env, tenant.id, importId);
 }
 
 async function handleApiRequest(request: Request, env: Env): Promise<Response> {
