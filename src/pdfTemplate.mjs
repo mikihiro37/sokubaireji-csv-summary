@@ -68,6 +68,7 @@ th{background:#f2f6f4;font-weight:700;}.number{text-align:right;white-space:nowr
     ${item("PDF作成日時", createdAt.toLocaleString("ja-JP"))}
   </div>
 </div>
+<script>window.onload = function() { window.print(); };<\/script>
 </body>
 </html>`;
 }
@@ -81,10 +82,6 @@ export function printHtml(html) {
   }
   win.document.write(html);
   win.document.close();
-  win.addEventListener("load", () => {
-    win.focus();
-    try { win.print(); } catch (_) { /* iOS は無視する */ }
-  });
 }
 
 /**
