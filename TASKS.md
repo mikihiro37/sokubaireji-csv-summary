@@ -122,7 +122,135 @@ button.reissue-button:hover { background: #145a94; }
 ---
 
 ## 作業順序
-TASK-10 のみ未着手。完了後は人間がレビュー・デプロイする。
+TASK-11 のみ未着手。完了後は人間がレビュー・デプロイする。
+
+---
+
+## TASK-11【改善】PDFボタンを1つに統合・操作説明を追加
+
+**目的**
+「印刷する」「ダウンロード」の2ボタンを「PDFを開く」1ボタンに統合する。
+開いたPDFビューアでの印刷・保存方法をわかりやすく案内するテキストを追加する。
+
+**変更ファイル**
+- `index.html`
+- `src/main.mjs`
+
+---
+
+### ① `index.html` の変更
+
+**a) `#pdfPanel` 内のボタンを1つに統合し、説明文を追加する**
+
+```html
+<!-- 変更前 -->
+<div>
+  <h3>次の操作</h3>
+  <p>保存した売上の控えPDFを作成できます。ブラウザの印刷ダイアログから印刷またはPDF保存できます。</p>
+</div>
+<div class="pdf-action-buttons">
+  <button id="pdfPrintButton" type="button">印刷する</button>
+  <button id="pdfDownloadButton" type="button">ダウンロード</button>
+</div>
+<p id="pdfStatus" class="save-status" aria-live="polite"></p>
+
+<!-- 変更後 -->
+<div>
+  <h3>PDFを開く</h3>
+  <p class="pdf-help-text">
+    新しいタブにPDFが開きます。<br>
+    <strong>印刷：</strong>ブラウザの印刷ボタン（🖨️）または Cmd+P（Mac）/ Ctrl+P（Windows）<br>
+    <strong>保存：</strong>ブラウザのダウンロードボタン（⬇️）または Cmd+S<br>
+    <strong>iPhone / iPad：</strong>画面下の共有ボタン（□↑）→「プリント」または「ファイルに保存」
+  </p>
+</div>
+<button id="pdfOpenButton" type="button">PDFを開く</button>
+<p id="pdfStatus" class="save-status" aria-live="polite"></p>
+```
+
+**b) 保存済み一覧テーブルのヘッダーと行の操作セルを変更する**
+
+`renderSavedImports` で使うボタン属性名を変える（`main.mjs` 側で対応するため HTML 上のテーブル定義は変更なし）。
+
+---
+
+### ② `src/main.mjs` の変更
+
+**a) 変数宣言を変更する**
+
+```javascript
+// 変更前
+const pdfPrintButton    = document.querySelector("#pdfPrintButton");
+const pdfDownloadButton = document.querySelector("#pdfDownloadButton");
+
+// 変更後
+const pdfOpenButton = document.querySelector("#pdfOpenButton");
+```
+
+**b) 2つのボタンハンドラを1つにまとめる**
+
+`pdfPrintButton` と `pdfDownloadButton` の addEventListener を削除し、以下に置き換える。
+
+```javascript
+pdfOpenButton.addEventListener("click", () => {
+  const saveToken = saveTokenInput.value.trim();
+  if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
+  if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+  const url = `/api/pdf?import_id=${encodeURIComponent(lastSavedImportId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
+  window.open(url, "_blank");
+});
+```
+
+**c) `renderSavedImports` のボタンを1つにする**
+
+```javascript
+// 変更前（2ボタン）
+`<button class="small-button" type="button" data-pdf-print-id="${escapeHtml(item.import_id)}">印刷する</button>
+ <button class="small-button" type="button" data-pdf-download-id="${escapeHtml(item.import_id)}">ダウンロード</button>`
+
+// 変更後（1ボタン）
+`<button class="small-button" type="button" data-pdf-open-id="${escapeHtml(item.import_id)}">PDFを開く</button>`
+```
+
+**d) `savedImportsBody.addEventListener` の PDF 関連処理を1つにまとめる**
+
+`[data-pdf-print-id]` と `[data-pdf-download-id]` の2つのハンドラを削除し、以下に置き換える。
+
+```javascript
+const pdfBtn = event.target.closest("[data-pdf-open-id]");
+if (pdfBtn) {
+  const saveToken = saveTokenInput.value.trim();
+  if (!saveToken) { showSavedImportsStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
+  const url = `/api/pdf?import_id=${encodeURIComponent(pdfBtn.dataset.pdfOpenId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
+  window.open(url, "_blank");
+  return;
+}
+```
+
+**e) `resetPdfState` と `showPdfReady` を更新する**
+
+```javascript
+function showPdfReady(messageText) {
+  pdfPanel.hidden = false;
+  pdfOpenButton.disabled = false;
+  showPdfStatus(messageText || "PDFを開けます。", "");
+}
+
+function resetPdfState() {
+  lastSavedImportId = "";
+  pdfPanel.hidden = true;
+  pdfOpenButton.disabled = false;
+  pdfOpenButton.textContent = "PDFを開く";
+  pdfStatus.textContent = "";
+  pdfStatus.className = "save-status";
+}
+```
+
+---
+
+### 完了条件
+- `npm test` がパス
+- `wrangler deploy` は実行しない
 
 ---
 
