@@ -153,13 +153,15 @@
           </form>
           <div id="pdfPanel" class="pdf-panel" hidden>
             <div>
-              <h3>次の操作</h3>
-              <p>保存した売上の控えPDFを作成できます。ブラウザの印刷ダイアログから印刷またはPDF保存できます。</p>
+              <h3>PDFを開く</h3>
+              <p class="pdf-help-text">
+                新しいタブにPDFが開きます。<br>
+                <strong>印刷：</strong>ブラウザの印刷ボタン（🖨️）または Cmd+P（Mac）/ Ctrl+P（Windows）<br>
+                <strong>保存：</strong>ブラウザのダウンロードボタン（⬇️）または Cmd+S<br>
+                <strong>iPhone / iPad：</strong>画面下の共有ボタン（□↑）→「プリント」または「ファイルに保存」
+              </p>
             </div>
-            <div class="pdf-action-buttons">
-              <button id="pdfPrintButton" type="button">印刷する</button>
-              <button id="pdfDownloadButton" type="button">ダウンロード</button>
-            </div>
+            <button id="pdfOpenButton" type="button">PDFを開く</button>
             <p id="pdfStatus" class="save-status" aria-live="polite"></p>
           </div>
         </section>

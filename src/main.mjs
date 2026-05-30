@@ -1,7 +1,6 @@
 import { parseCsvText } from "./csvParser.mjs";
 import { readInputFile } from "./fileLoader.mjs";
 import { buildSheetsPayload, createCsvHash, generateImportId } from "./sheetsPayload.mjs";
-import { buildPdfHtml } from "./pdfTemplate.mjs";
 
 const fileInput            = document.querySelector("#csvFile");
 const message              = document.querySelector("#message");
@@ -29,8 +28,7 @@ const noticeBanner         = document.querySelector("#noticeBanner");
 const noticeClose          = document.querySelector("#noticeClose");
 const aboutButton          = document.querySelector("#aboutButton");
 const pdfPanel             = document.querySelector("#pdfPanel");
-const pdfPrintButton       = document.querySelector("#pdfPrintButton");
-const pdfDownloadButton    = document.querySelector("#pdfDownloadButton");
+const pdfOpenButton        = document.querySelector("#pdfOpenButton");
 const pdfStatus            = document.querySelector("#pdfStatus");
 const loadImportsButton    = document.querySelector("#loadImportsButton");
 const savedImportsStatus   = document.querySelector("#savedImportsStatus");
@@ -166,19 +164,11 @@ saveForm.addEventListener("submit", async (event) => {
 });
 
 // ===== PDF作成 =====
-pdfPrintButton.addEventListener("click", () => {
+pdfOpenButton.addEventListener("click", () => {
   const saveToken = saveTokenInput.value.trim();
   if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
   if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
   const url = `/api/pdf?import_id=${encodeURIComponent(lastSavedImportId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
-  window.open(url, "_blank");
-});
-
-pdfDownloadButton.addEventListener("click", () => {
-  const saveToken = saveTokenInput.value.trim();
-  if (!lastSavedImportId) { showPdfStatus("先に売上を保存してください。", "error"); return; }
-  if (!saveToken) { showPdfStatus("接続キーを設定してください。", "error"); settingsPanel.hidden = false; return; }
-  const url = `/api/pdf?import_id=${encodeURIComponent(lastSavedImportId)}&token=${encodeURIComponent(saveToken)}`;
   window.open(url, "_blank");
 });
 
@@ -225,17 +215,10 @@ savedImportsBody.addEventListener("click", async (event) => {
     return;
   }
 
-  // PDF印刷ボタン
-  const pdfBtn = event.target.closest("[data-pdf-print-id]");
+  // PDFボタン
+  const pdfBtn = event.target.closest("[data-pdf-open-id]");
   if (pdfBtn) {
-    const url = `/api/pdf?import_id=${encodeURIComponent(pdfBtn.dataset.pdfPrintId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
-    window.open(url, "_blank");
-    return;
-  }
-
-  const dlBtn = event.target.closest("[data-pdf-download-id]");
-  if (dlBtn) {
-    const url = `/api/pdf?import_id=${encodeURIComponent(dlBtn.dataset.pdfDownloadId)}&token=${encodeURIComponent(saveToken)}`;
+    const url = `/api/pdf?import_id=${encodeURIComponent(pdfBtn.dataset.pdfOpenId)}&token=${encodeURIComponent(saveToken)}&mode=print`;
     window.open(url, "_blank");
     return;
   }
@@ -413,8 +396,7 @@ function renderSavedImports(imports) {
       <td>${escapeHtml(formatDateTimeValue(item.imported_at))}</td>
       <td>
         <div class="saved-import-operation">
-          <button class="small-button" type="button" data-pdf-print-id="${escapeHtml(item.import_id)}">印刷する</button>
-          <button class="small-button" type="button" data-pdf-download-id="${escapeHtml(item.import_id)}">ダウンロード</button>
+          <button class="small-button" type="button" data-pdf-open-id="${escapeHtml(item.import_id)}">PDFを開く</button>
           <button class="small-button delete-button" type="button" data-delete-import-id="${escapeHtml(item.import_id)}">一覧から削除</button>
           <details class="row-details"><summary>詳細</summary>
             <dl>
@@ -498,18 +480,15 @@ function showSettingsStatus(text, status) { settingsStatus.textContent = text; s
 
 function showPdfReady(messageText) {
   pdfPanel.hidden = false;
-  pdfPrintButton.disabled = false;
-  pdfDownloadButton.disabled = false;
-  showPdfStatus(messageText || "控えPDFを作成できます。", "");
+  pdfOpenButton.disabled = false;
+  showPdfStatus(messageText || "PDFを開けます。", "");
 }
 
 function resetPdfState() {
   lastSavedImportId = "";
   pdfPanel.hidden = true;
-  pdfPrintButton.disabled = false;
-  pdfPrintButton.textContent = "印刷する";
-  pdfDownloadButton.disabled = false;
-  pdfDownloadButton.textContent = "ダウンロード";
+  pdfOpenButton.disabled = false;
+  pdfOpenButton.textContent = "PDFを開く";
   pdfStatus.textContent = "";
   pdfStatus.className = "save-status";
 }
